@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Olbrain Streaming - Real-time Messages</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f9fafb;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      overflow: hidden;
+    }
+
+    header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 30px;
+    }
+
+    h1 {
+      margin-bottom: 10px;
+    }
+
+    p {
+      opacity: 0.9;
+      font-size: 14px;
+    }
+
+    .controls {
+      padding: 20px 30px;
+      border-bottom: 1px solid #e5e7eb;
+      display: flex;
+      gap: 10px;
+    }
+
+    input,
+    button {
+      padding: 10px 14px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 14px;
+    }
+
+    input {
+      flex: 1;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    button {
+      background: #667eea;
+      color: white;
+      border: none;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    button:hover {
+      background: #5568d3;
+    }
+
+    button:disabled {
+      background: #d1d5db;
+      cursor: not-allowed;
+    }
+
+    .messages {
+      height: 400px;
+      overflow-y: auto;
+      padding: 20px 30px;
+      background: #fafafa;
+    }
+
+    .message {
+      margin-bottom: 15px;
+      animation: slideIn 0.3s ease;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .message-user {
+      text-align: right;
+    }
+
+    .message-content {
+      display: inline-block;
+      max-width: 70%;
+      padding: 12px 16px;
+      border-radius: 12px;
+      word-wrap: break-word;
+    }
+
+    .message-user .message-content {
+      background: #667eea;
+      color: white;
+    }
+
+    .message-assistant .message-content {
+      background: #e5e7eb;
+      color: #111827;
+    }
+
+    .message-time {
+      font-size: 12px;
+      color: #6b7280;
+      margin-top: 5px;
+    }
+
+    .status {
+      padding: 10px 30px;
+      font-size: 14px;
+      background: #f3f4f6;
+      color: #374151;
+      border-top: 1px solid #e5e7eb;
+    }
+
+    .status.streaming {
+      background: #dbeafe;
+      color: #1e40af;
+    }
+
+    .status.connected {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .status.error {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🔄 Real-time Streaming</h1>
+      <p>Watch messages arrive in real-time via Server-Sent Events</p>
+    </header>
+
+    <div class="controls">
+      <input type="text" id="message" placeholder="Type a message and press Send..." />
+      <button id="sendBtn" onclick="sendMessage()">Send</button>
+      <button id="streamBtn" onclick="toggleStreaming()" style="background: #10b981;">Start Stream</button>
+    </div>
+
+    <div class="messages" id="messages"></div>
+
+    <div class="status" id="status">Ready</div>
+  </div>
+
+  <!-- Load Olbrain SDK -->
+  <script src="../../dist/index.global.js"></script>
+
+  <script>
+    let client = null;
+    let sessionId = null;
+    let isStreaming = false;
+
+    function formatTime(date = new Date()) {
+      return date.toLocaleTimeString();
+    }
+
+    function updateStatus(message, type = 'default') {
+      const statusEl = document.getElementById('status');
+      statusEl.textContent = message;
+      statusEl.className = `status ${type}`;
+    }
+
+    function addMessage(content, role) {
+      const messagesEl = document.getElementById('messages');
+      const msgEl = document.createElement('div');
+      msgEl.className = `message message-${role}`;
+
+      const contentEl = document.createElement('div');
+      contentEl.className = 'message-content';
+      contentEl.textContent = content;
+
+      const timeEl = document.createElement('div');
+      timeEl.className = 'message-time';
+      timeEl.textContent = formatTime();
+
+      msgEl.appendChild(contentEl);
+      msgEl.appendChild(timeEl);
+      messagesEl.appendChild(msgEl);
+
+      // Scroll to bottom
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    async function initializeClient() {
+      if (client) return;
+
+      client = new Olbrain.AgentClient({
+        agentId: 'demo-agent',
+        apiKey: 'sk_live_demo',
+      });
+
+      sessionId = await client.createSession({
+        title: 'Streaming Example',
+      });
+
+      addMessage('Session created. Ready to stream!', 'assistant');
+    }
+
+    async function toggleStreaming() {
+      if (!client) {
+        updateStatus('Initializing...', 'streaming');
+        await initializeClient();
+      }
+
+      const streamBtn = document.getElementById('streamBtn');
+
+      if (isStreaming) {
+        client.stopListening(sessionId);
+        isStreaming = false;
+        streamBtn.textContent = 'Start Stream';
+        streamBtn.style.background = '#10b981';
+        updateStatus('Streaming stopped', 'default');
+      } else {
+        updateStatus('Listening for messages...', 'streaming');
+
+        await client.listen(
+          sessionId,
+          (message) => {
+            addMessage(message.content, message.role);
+          },
+          (error) => {
+            updateStatus(`Error: ${error.message}`, 'error');
+          }
+        );
+
+        isStreaming = true;
+        streamBtn.textContent = 'Stop Stream';
+        streamBtn.style.background = '#ef4444';
+        updateStatus('Streaming connected', 'connected');
+      }
+    }
+
+    async function sendMessage() {
+      const messageInput = document.getElementById('message');
+      const message = messageInput.value.trim();
+
+      if (!message) return;
+
+      if (!client) {
+        updateStatus('Initializing...', 'streaming');
+        await initializeClient();
+      }
+
+      messageInput.value = '';
+      messageInput.disabled = true;
+
+      try {
+        updateStatus('Sending message...', 'streaming');
+        addMessage(message, 'user');
+
+        const response = await client.sendAndWait(sessionId, message);
+        addMessage(response.text, 'assistant');
+
+        updateStatus('Ready', 'connected');
+      } catch (error) {
+        addMessage(`Error: ${error.message}`, 'assistant');
+        updateStatus(`Error: ${error.message}`, 'error');
+      } finally {
+        messageInput.disabled = false;
+        messageInput.focus();
+      }
+    }
+
+    // Allow Enter key to send
+    document.getElementById('message').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        sendMessage();
+      }
+    });
+  </script>
+</body>
+</html>

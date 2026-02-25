@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Olbrain Widget - Debug Test</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: sans-serif;
+      background: #f5f5f5;
+    }
+    .test-box {
+      background: white;
+      border: 2px solid #ddd;
+      padding: 16px;
+      margin: 16px 0;
+      border-radius: 8px;
+    }
+    h3 {
+      margin-top: 0;
+      color: #333;
+    }
+    .expected {
+      color: #0066cc;
+      font-size: 12px;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Olbrain Widget - Markdown Rendering Debug</h1>
+
+  <div class="test-box">
+    <h3>Test 1: Simple Greeting (should show formatted list)</h3>
+    <p>Check the widget below. The greeting should display a formatted list with bullets.</p>
+    <div class="expected">Expected: Heading with list items showing • bullets in primary color</div>
+  </div>
+
+  <div class="test-box">
+    <h3>Test 2: Send Markdown Messages</h3>
+    <p>Try sending these messages to test formatting:</p>
+    <code>- Item 1<br>- Item 2<br>- Item 3</code>
+    <div class="expected">Expected: Bulleted list displayed in the widget</div>
+  </div>
+
+  <script src="./dist/widget.widget.global.js"></script>
+
+  <script>
+    // Simple greeting with markdown
+    const widget = new OlbrainWidget.ChatWidget({
+      agentId: 'test',
+      apiKey: 'test',
+      title: 'Debug Test',
+      greeting: '# Markdown Test\n\nThis should show:\n\n- Bullet 1\n- Bullet 2\n- Bullet 3',
+      theme: 'light',
+      autoOpen: true,
+      primaryColor: '#4f46e5'
+    });
+
+    widget.mount();
+
+    console.log('✓ Widget mounted. Check the greeting for formatted list.');
+    console.log('✓ Open browser DevTools and inspect the messages container.');
+    console.log('✓ Look for <ul><li> elements in the HTML.');
+  </script>
+</body>
+</html>

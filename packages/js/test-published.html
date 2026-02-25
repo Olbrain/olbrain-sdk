@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>@olbrain/js-sdk - Published Package Test</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+
+    .header {
+      background: white;
+      border-radius: 12px;
+      padding: 40px;
+      margin-bottom: 30px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+      text-align: center;
+    }
+
+    h1 {
+      color: #111827;
+      font-size: 32px;
+      margin-bottom: 10px;
+    }
+
+    .badge {
+      display: inline-block;
+      background: #10b981;
+      color: white;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 20px;
+    }
+
+    .subtitle {
+      color: #6b7280;
+      font-size: 18px;
+      margin-bottom: 30px;
+    }
+
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+
+    .info-card {
+      background: #f9fafb;
+      padding: 20px;
+      border-radius: 8px;
+      border-left: 4px solid #667eea;
+    }
+
+    .info-card label {
+      display: block;
+      color: #6b7280;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+
+    .info-card code {
+      font-family: 'Courier New', monospace;
+      color: #111827;
+      font-size: 13px;
+      word-break: break-all;
+      background: white;
+      padding: 8px;
+      border-radius: 4px;
+      display: block;
+    }
+
+    .features {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 15px;
+      margin-bottom: 30px;
+    }
+
+    .feature {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    }
+
+    .feature h3 {
+      color: #667eea;
+      font-size: 14px;
+      margin-bottom: 8px;
+    }
+
+    .feature p {
+      color: #6b7280;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .setup {
+      background: white;
+      border-radius: 12px;
+      padding: 30px;
+      margin-bottom: 30px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+    }
+
+    .setup h2 {
+      color: #111827;
+      margin-bottom: 20px;
+      font-size: 20px;
+    }
+
+    .code-block {
+      background: #1f2937;
+      color: #e5e7eb;
+      padding: 20px;
+      border-radius: 8px;
+      overflow-x: auto;
+      margin-bottom: 15px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+    }
+
+    .code-label {
+      font-size: 12px;
+      color: #9ca3af;
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .step {
+      margin-bottom: 20px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .step:last-child {
+      border-bottom: none;
+      margin-bottom: 0;
+      padding-bottom: 0;
+    }
+
+    .step-number {
+      display: inline-block;
+      background: #667eea;
+      color: white;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      line-height: 32px;
+      text-align: center;
+      margin-right: 12px;
+      font-weight: 600;
+    }
+
+    .step-content {
+      display: inline-block;
+    }
+
+    .step-title {
+      color: #111827;
+      font-weight: 600;
+      margin-bottom: 5px;
+    }
+
+    .step-description {
+      color: #6b7280;
+      font-size: 14px;
+    }
+
+    .highlight {
+      background: #fef08a;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-weight: 600;
+    }
+
+    .footer {
+      text-align: center;
+      color: white;
+      margin-top: 40px;
+      font-size: 14px;
+    }
+
+    .status {
+      background: #dbeafe;
+      border-left: 4px solid #3b82f6;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+
+    .status.success {
+      background: #dcfce7;
+      border-left-color: #10b981;
+    }
+
+    .status p {
+      color: #1e40af;
+      margin: 0;
+    }
+
+    .status.success p {
+      color: #166534;
+    }
+
+    @media (max-width: 768px) {
+      .header {
+        padding: 20px;
+      }
+
+      h1 {
+        font-size: 24px;
+      }
+
+      .info-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <span class="badge">✅ Published to npm</span>
+      <h1>@olbrain/js-sdk</h1>
+      <p class="subtitle">Official JavaScript SDK for Olbrain Agent Cloud</p>
+
+      <div class="info-grid">
+        <div class="info-card">
+          <label>Package Name</label>
+          <code>@olbrain/js-sdk</code>
+        </div>
+        <div class="info-card">
+          <label>npm Registry</label>
+          <code>https://www.npmjs.com/package/@olbrain/js-sdk</code>
+        </div>
+        <div class="info-card">
+          <label>Version</label>
+          <code>1.0.0+</code>
+        </div>
+      </div>
+
+      <div class="features">
+        <div class="feature">
+          <h3>📦 npm Package</h3>
+          <p>Install with npm and use in any JavaScript project</p>
+        </div>
+        <div class="feature">
+          <h3>🌐 Browser CDN</h3>
+          <p>Load directly in HTML via unpkg CDN</p>
+        </div>
+        <div class="feature">
+          <h3>📱 Chat Widget</h3>
+          <p>One-line integration for instant deployment</p>
+        </div>
+        <div class="feature">
+          <h3>⚡ Zero Dependencies</h3>
+          <p>Browser builds have no runtime dependencies</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Setup Instructions -->
+    <div class="setup">
+      <h2>🚀 Installation & Usage</h2>
+
+      <div class="step">
+        <span class="step-number">1</span>
+        <div class="step-content">
+          <div class="step-title">npm Install</div>
+          <div class="step-description">Install from npm registry</div>
+          <div class="code-block">
+            <div class="code-label">bash</div>
+npm install @olbrain/js-sdk
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <span class="step-number">2</span>
+        <div class="step-content">
+          <div class="step-title">Browser Widget (One-Line)</div>
+          <div class="step-description">Add AI chat to any website instantly</div>
+          <div class="code-block">
+            <div class="code-label">html</div>
+&lt;script src="https://unpkg.com/@olbrain/js-sdk@latest/dist/widget.widget.global.js"&gt;&lt;/script&gt;
+&lt;script&gt;
+  new OlbrainWidget.ChatWidget({
+    agentId: 'your-agent-id',
+    apiKey: 'sk_live_your_key'
+  }).mount();
+&lt;/script&gt;
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <span class="step-number">3</span>
+        <div class="step-content">
+          <div class="step-title">Node.js Usage</div>
+          <div class="step-description">Use in server-side applications</div>
+          <div class="code-block">
+            <div class="code-label">javascript</div>
+import { AgentClient } from '@olbrain/js-sdk';
+
+const client = new AgentClient({
+  agentId: 'your-agent-id',
+  apiKey: 'sk_live_your_key'
+});
+
+const sessionId = await client.createSession();
+const response = await client.sendAndWait(sessionId, 'Hello!');
+console.log(response.text);
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <span class="step-number">4</span>
+        <div class="step-content">
+          <div class="step-title">TypeScript Support</div>
+          <div class="step-description">Full type definitions included</div>
+          <div class="code-block">
+            <div class="code-label">typescript</div>
+import { AgentClient, ChatResponse } from '@olbrain/js-sdk';
+
+const client = new AgentClient({...});
+const response: ChatResponse = await client.sendAndWait(sessionId, 'Hi!');
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live Test -->
+    <div class="setup">
+      <h2>✨ Live Test with Published Package</h2>
+
+      <div class="status success">
+        <p>
+          ✅ The chat widget below is loaded from unpkg CDN using the published npm package.
+          <br>
+          It's working with real credentials to demonstrate the live API integration.
+        </p>
+      </div>
+
+      <p style="color: #6b7280; margin-bottom: 20px;">
+        Look for the floating chat button in the <span class="highlight">bottom-right corner</span>.
+        Click to open and start chatting with the Olbrain agent!
+      </p>
+    </div>
+
+    <div class="footer">
+      <p>📦 Loaded from: unpkg.com/@olbrain/js-sdk@latest</p>
+      <p style="margin-top: 10px; opacity: 0.8;">
+        🔗 View on npm: <a href="https://www.npmjs.com/package/@olbrain/js-sdk" target="_blank" style="color: white; text-decoration: underline;">npmjs.com/package/@olbrain/js-sdk</a>
+      </p>
+    </div>
+  </div>
+
+  <!-- Load the published widget from unpkg CDN -->
+  <script src="https://unpkg.com/@olbrain/js-sdk@latest/dist/widget.widget.global.js"></script>
+
+  <script>
+    console.log('%c🤖 Testing Published @olbrain/js-sdk', 'color: #667eea; font-size: 18px; font-weight: bold;');
+    console.log('%cLoaded from: unpkg.com/@olbrain/js-sdk@latest', 'color: #6b7280; font-size: 13px;');
+
+    // Wait for widget to load
+    if (typeof OlbrainWidget !== 'undefined') {
+      console.log('✅ OlbrainWidget loaded successfully');
+
+      // Initialize the widget with real credentials
+      const widget = new OlbrainWidget.ChatWidget({
+        agentId: 'YOUR_AGENT_ID_HERE',
+        apiKey: process.env.REACT_APP_OLBRAIN_API_KEY || 'YOUR_API_KEY_HERE',
+        title: '💬 Olbrain Agent',
+        greeting: 'Hello! I\'m an Olbrain AI agent running from the published npm package. Ask me anything! 🤖',
+        placeholder: 'Type your message...',
+        primaryColor: '#667eea',
+        theme: 'light',
+        autoOpen: false,
+        persistSession: true
+      });
+
+      widget.mount();
+      console.log('✅ Chat widget mounted successfully');
+      console.log('%c🚀 Ready to test! Click the chat button to start.', 'color: #10b981; font-weight: bold;');
+    } else {
+      console.error('❌ OlbrainWidget failed to load');
+    }
+  </script>
+</body>
+</html>
