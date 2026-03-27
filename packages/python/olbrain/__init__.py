@@ -21,7 +21,8 @@ Example:
 """
 
 from .client import AgentClient
-from .session import ChatResponse, SessionInfo, TokenUsage, Message, Session
+from .org_client import OrgClient
+from .session import ChatResponse, SessionInfo, TokenUsage, Message, Session, ProjectInfo, AgentInfo, DeploymentInfo
 from .exceptions import (
     OlbrainError,
     AuthenticationError,
@@ -38,14 +39,18 @@ __author__ = "Olbrain Team"
 __email__ = "support@olbrain.com"
 
 __all__ = [
-    # Main client
+    # Clients
     'AgentClient',
+    'OrgClient',
     # Data classes
     'ChatResponse',
     'SessionInfo',
     'TokenUsage',
     'Message',
     'Session',
+    'ProjectInfo',
+    'AgentInfo',
+    'DeploymentInfo',
     # Exceptions
     'OlbrainError',
     'AuthenticationError',

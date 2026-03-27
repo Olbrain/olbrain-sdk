@@ -3,12 +3,14 @@
  * Main entry point for core API exports
  */
 
-// Export client
+// Export clients
 export { AgentClient } from './core/client';
+export { OrgClient } from './core/org_client';
 
 // Export types
 export type {
   AgentConfig,
+  OrgClientConfig,
   CreateSessionOptions,
   SessionUpdates,
   SendOptions,
@@ -21,6 +23,13 @@ export type {
   ErrorCallback,
   StreamConfig,
   WidgetConfig,
+  ProjectInfo,
+  AgentInfo,
+  DeploymentInfo,
+  CreateProjectOptions,
+  CreateAgentOptions,
+  UpdateAgentOptions,
+  ListAgentsOptions,
 } from './core/types';
 
 // Export error classes

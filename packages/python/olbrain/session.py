@@ -147,6 +147,120 @@ class ChatResponse:
         }
 
 
+@dataclass
+class ProjectInfo:
+    """Information about a project returned by OrgClient."""
+    project_id: str
+    name: str
+    organization_id: str
+    description: str = ""
+    created_at: str = ""
+    updated_at: str = ""
+    created_by: str = ""
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'ProjectInfo':
+        project_info = data.get('project_info', {})
+        return cls(
+            project_id=data.get('project_id', data.get('id', '')),
+            name=project_info.get('name', data.get('name', '')),
+            organization_id=data.get('organization_id', ''),
+            description=project_info.get('description', data.get('description', '')),
+            created_at=str(data.get('created_at', '')),
+            updated_at=str(data.get('updated_at', '')),
+            created_by=data.get('created_by', '')
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'project_id': self.project_id,
+            'name': self.name,
+            'organization_id': self.organization_id,
+            'description': self.description,
+            'created_at': self.created_at,
+            'updated_at': self.updated_at,
+            'created_by': self.created_by
+        }
+
+
+@dataclass
+class AgentInfo:
+    """Information about an agent returned by OrgClient."""
+    agent_id: str
+    name: str
+    project_id: str
+    organization_id: str
+    description: str = ""
+    development_stage: str = "draft"  # draft, published
+    version: int = 1
+    created_at: str = ""
+    updated_at: str = ""
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'AgentInfo':
+        basic_info = data.get('basic_info', {})
+        status = data.get('status', {})
+        return cls(
+            agent_id=data.get('id', data.get('agent_id', '')),
+            name=basic_info.get('name', data.get('name', '')),
+            project_id=data.get('project_id', ''),
+            organization_id=data.get('organization_id', ''),
+            description=basic_info.get('description', data.get('description', '')),
+            development_stage=status.get('development_stage', 'draft'),
+            version=data.get('version', 1),
+            created_at=str(data.get('created_at', '')),
+            updated_at=str(data.get('updated_at', ''))
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'agent_id': self.agent_id,
+            'name': self.name,
+            'project_id': self.project_id,
+            'organization_id': self.organization_id,
+            'description': self.description,
+            'development_stage': self.development_stage,
+            'version': self.version,
+            'created_at': self.created_at,
+            'updated_at': self.updated_at
+        }
+
+
+@dataclass
+class DeploymentInfo:
+    """Information about an agent deployment returned by OrgClient."""
+    deployment_id: str
+    agent_id: str
+    version: int
+    status: str  # queued, completed, failed, cancelled
+    is_active: bool = False
+    config_file_path: str = ""
+    created_at: str = ""
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'DeploymentInfo':
+        return cls(
+            deployment_id=data.get('deployment_id', data.get('id', '')),
+            agent_id=data.get('agent_id', ''),
+            version=data.get('version', 1),
+            status=data.get('status', ''),
+            is_active=data.get('is_active', False),
+            config_file_path=data.get('config_file_path', ''),
+            created_at=str(data.get('created_at', ''))
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'deployment_id': self.deployment_id,
+            'agent_id': self.agent_id,
+            'version': self.version,
+            'status': self.status,
+            'is_active': self.is_active,
+            'config_file_path': self.config_file_path,
+            'created_at': self.created_at
+        }
+
+
 class Session:
     """
     Represents a conversation session with an Olbrain agent.

@@ -116,6 +116,92 @@ export interface StreamConfig {
 }
 
 /**
+ * Configuration for OrgClient
+ */
+export interface OrgClientConfig {
+  orgApiKey: string;
+  studioUrl: string;
+}
+
+/**
+ * Project information returned by OrgClient
+ */
+export interface ProjectInfo {
+  projectId: string;
+  name: string;
+  organizationId: string;
+  description?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  createdBy?: string;
+}
+
+/**
+ * Agent information returned by OrgClient
+ */
+export interface AgentInfo {
+  agentId: string;
+  name: string;
+  projectId: string;
+  organizationId: string;
+  description?: string;
+  developmentStage?: string;
+  version?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+/**
+ * Deployment information returned by OrgClient
+ */
+export interface DeploymentInfo {
+  deploymentId: string;
+  agentId: string;
+  version: number;
+  status: string;
+  isActive?: boolean;
+  configFilePath?: string;
+  createdAt?: string;
+}
+
+/**
+ * Options for creating a project
+ */
+export interface CreateProjectOptions {
+  description?: string;
+}
+
+/**
+ * Options for creating an agent
+ */
+export interface CreateAgentOptions {
+  description?: string;
+  agentType?: string;
+  industry?: string;
+  useCase?: string;
+}
+
+/**
+ * Options for updating an agent
+ */
+export interface UpdateAgentOptions {
+  name?: string;
+  description?: string;
+  agentType?: string;
+  industry?: string;
+  useCase?: string;
+}
+
+/**
+ * Options for listing agents
+ */
+export interface ListAgentsOptions {
+  projectId?: string;
+  organizationId?: string;
+  lifecycleState?: string;
+}
+
+/**
  * Widget configuration
  */
 export interface WidgetConfig {
