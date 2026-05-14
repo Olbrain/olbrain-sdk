@@ -20,6 +20,12 @@ jobs:
         with:
           fetch-depth: 2
 
+      - name: Sanitize commit message
+        id: meta
+        run: |
+          MSG=$(git log -1 --format='%s' | head -c 200 | tr -d '\n\r\t\\' | sed 's/"/'"'"'/g')
+          echo "commit_msg=$MSG" >> $GITHUB_OUTPUT
+
       - name: Dispatch wiki sync
         uses: peter-evans/repository-dispatch@v3
         with:
@@ -31,5 +37,5 @@ jobs:
               "service_repo": "${{ github.repository }}",
               "service_repo_short": "${{ github.event.repository.name }}",
               "commit_sha": "${{ github.sha }}",
-              "commit_message": "${{ github.event.head_commit.message }}"
+              "commit_message": "${{ steps.meta.outputs.commit_msg }}"
             }
