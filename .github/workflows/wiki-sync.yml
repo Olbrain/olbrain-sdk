@@ -1,0 +1,35 @@
+name: Notify wiki of changes
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "**/models/**"
+      - "**/schemas/**"
+      - "**/routes/**"
+      - "**/routers/**"
+      - "**/prompts/**"
+      - "**/pricing/**"
+      - "README.md"
+
+jobs:
+  notify-wiki:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Dispatch wiki sync
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.WIKI_DISPATCH_TOKEN }}
+          repository: Olbrain/olbrain-wiki
+          event-type: service-changed
+          client-payload: |
+            {
+              "service_repo": "${{ github.repository }}",
+              "service_repo_short": "${{ github.event.repository.name }}",
+              "commit_sha": "${{ github.sha }}",
+              "commit_message": "${{ github.event.head_commit.message }}"
+            }
