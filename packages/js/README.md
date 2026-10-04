@@ -91,6 +91,22 @@ const client = new AgentClient({ agentId: '...', apiKey: '...' });
 const response: ChatResponse = await client.sendAndWait(sessionId, 'Hi!');
 ```
 
+## Workflow runs and approvals
+
+```ts
+import { Olbrain } from '@olbrain/js-sdk';
+
+const olbrain = new Olbrain({ apiKey: 'ak_…' });                       // servers and scripts
+// const olbrain = new Olbrain({ getIdToken: () => user.getIdToken() }); // a signed-in Olbrain user
+
+const { runId } = await olbrain.workflows.run(agentId, { payload: { deck: fileId } });
+const run = await olbrain.runs.get(agentId, runId);
+const pending = await olbrain.approvals.list(agentId, runId);
+await olbrain.approvals.resolve(agentId, runId, { exceptionId: pending[0].exception_id, resolution: 'approved' });
+```
+
+Errors carry the API's code: `BillingError` (the organization can't pay), `NotFoundError`, `AuthenticationError`, `RateLimitError`, and `ApiError` for everything else.
+
 ## 🎯 Core Concepts
 
 ### AgentClient

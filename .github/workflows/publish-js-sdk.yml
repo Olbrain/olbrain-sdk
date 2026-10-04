@@ -1,0 +1,32 @@
+name: Publish @olbrain/js-sdk
+
+on:
+  push:
+    tags: ["js-v*"]
+
+permissions:
+  contents: read
+  id-token: write  # npm trusted publishing (OIDC); no NPM_TOKEN secret
+
+jobs:
+  publish:
+    # ponytail: GitHub-hosted on purpose — this repo is public (free, uncapped minutes) and the org's self-hosted runners refuse public repos.
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/js
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - name: The tag must match package.json
+        run: test "js-v$(node -p "require('./package.json').version")" = "${GITHUB_REF_NAME}"
+      - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npx vitest run
+      - run: npm run build
+      # Trusted publishing needs npm >= 11.5.1; Node 22 ships npm 10.
+      - run: npm install -g npm@^11.5.1
+      - run: npm publish

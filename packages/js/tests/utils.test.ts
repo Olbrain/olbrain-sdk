@@ -14,6 +14,10 @@ import { ValidationError } from '../src/core/exceptions';
 
 describe('Utility Functions', () => {
   describe('validateApiKey', () => {
+    it('accepts Olbrain access keys (ak_)', () => {
+      expect(() => validateApiKey('ak_live_123')).not.toThrow();
+    });
+
     it('should accept sk_live_ prefix', () => {
       expect(() => validateApiKey('sk_live_abc123')).not.toThrow();
     });

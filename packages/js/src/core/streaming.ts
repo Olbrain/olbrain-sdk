@@ -62,8 +62,8 @@ export class MessageStream {
         'X-Agent-ID': this.config.agentId,
       };
 
-      // Create EventSource with headers
-      this.eventSource = new EventSourceImpl(url, { headers });
+      // Browsers ignore `headers`; only the Node `eventsource` polyfill honours it
+      this.eventSource = new EventSourceImpl(url, { headers } as EventSourceInit);
 
       // Handle incoming messages
       this.eventSource.addEventListener('message', (event: any) => {
