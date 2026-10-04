@@ -9,7 +9,8 @@ permissions:
 
 jobs:
   publish:
-    runs-on: self-hosted
+    # ponytail: GitHub-hosted on purpose — this repo is public (free, uncapped minutes) and the org's self-hosted runners refuse public repos.
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: packages/js
