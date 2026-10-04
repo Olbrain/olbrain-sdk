@@ -1,21 +1,21 @@
 {
   "name": "@olbrain/js-sdk",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Official JavaScript SDK for Olbrain Agent Cloud - one-line integration for AI agent chatbots",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
-  "browser": "./dist/index.global.js",
+  "unpkg": "./dist/index.global.js",
+  "jsdelivr": "./dist/index.global.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "browser": "./dist/index.global.js",
       "import": "./dist/index.mjs",
       "require": "./dist/index.js"
     },
     "./widget": {
       "types": "./dist/widget.d.ts",
-      "default": "./dist/widget.global.js"
+      "default": "./dist/widget.widget.global.js"
     }
   },
   "files": [
