@@ -6,6 +6,9 @@
 // Export client
 export { AgentClient } from './core/client';
 
+export { Olbrain } from './core/olbrain';
+export type { OlbrainConfig, Run, RunSummary, Approval, ResolveInput, ResolveResult } from './core/olbrain';
+
 // Export types
 export type {
   AgentConfig,
@@ -32,7 +35,10 @@ export {
   NetworkError,
   ValidationError,
   StreamingError,
+  ApiError,
+  NotFoundError,
+  BillingError,
 } from './core/exceptions';
 
 // Version
-export const VERSION = '1.0.0';
+export const VERSION = '1.2.0';

@@ -12,10 +12,10 @@ export function validateApiKey(apiKey: string): void {
     throw new ValidationError('API key is required');
   }
 
-  const validPrefixes = ['sk_live_', 'org_live_', 'sk_', 'org_'];
+  const validPrefixes = ['ak_', 'sk_live_', 'org_live_', 'sk_', 'org_'];
   if (!validPrefixes.some(prefix => apiKey.startsWith(prefix))) {
     throw new ValidationError(
-      'Invalid API key format. Must start with sk_, org_, sk_live_, or org_live_'
+      'Invalid API key format. Must start with ak_, sk_, org_, sk_live_, or org_live_'
     );
   }
 }

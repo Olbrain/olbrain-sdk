@@ -1,0 +1,30 @@
+name: Publish @olbrain/js-sdk
+
+on:
+  push:
+    tags: ["js-v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: self-hosted
+    defaults:
+      run:
+        working-directory: packages/js
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - name: The tag must match package.json
+        run: test "js-v$(node -p "require('./package.json').version")" = "${GITHUB_REF_NAME}"
+      - run: npm install --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npx vitest run
+      - run: npm run build
+      - run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

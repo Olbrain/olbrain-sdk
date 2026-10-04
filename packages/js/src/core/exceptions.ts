@@ -87,3 +87,33 @@ export class StreamingError extends OlbrainError {
     Object.setPrototypeOf(this, StreamingError.prototype);
   }
 }
+
+/** An error the API answered with: its HTTP status and machine-readable code. */
+export class ApiError extends OlbrainError {
+  status: number;
+  code: string;
+  constructor(status: number, code: string, message: string) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.code = code;
+    Object.setPrototypeOf(this, ApiError.prototype);
+  }
+}
+
+export class NotFoundError extends ApiError {
+  constructor(code: string = 'not_found', message: string = 'Not found') {
+    super(404, code, message);
+    this.name = 'NotFoundError';
+    Object.setPrototypeOf(this, NotFoundError.prototype);
+  }
+}
+
+/** The organization can't pay for this run (balance, credit limit or subscription). */
+export class BillingError extends ApiError {
+  constructor(status: number, code: string, message: string) {
+    super(status, code, message);
+    this.name = 'BillingError';
+    Object.setPrototypeOf(this, BillingError.prototype);
+  }
+}
