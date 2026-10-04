@@ -6,4 +6,4 @@ Releases are published by `.github/workflows/publish-js-sdk.yml` when a tag `js-
 2. Tag the merge commit: `git tag js-v1.2.0 <sha> && git push origin js-v1.2.0`.
 3. The workflow checks that the tag matches `package.json`, then runs the typecheck, tests and build, and publishes to npm.
 
-The workflow needs the repository secret `NPM_TOKEN`, an npm automation token with publish rights on the `@olbrain` scope.
+Publishing uses npm trusted publishing (GitHub OIDC): `@olbrain/js-sdk` on npmjs.com trusts `Olbrain/olbrain-sdk`'s `publish-js-sdk.yml`. There is no npm token secret; each release gets a provenance attestation.

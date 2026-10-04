@@ -6,6 +6,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write  # npm trusted publishing (OIDC); no NPM_TOKEN secret
 
 jobs:
   publish:
@@ -26,6 +27,6 @@ jobs:
       - run: npm run typecheck
       - run: npx vitest run
       - run: npm run build
+      # Trusted publishing needs npm >= 11.5.1; Node 22 ships npm 10.
+      - run: npm install -g npm@^11.5.1
       - run: npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
