@@ -11,6 +11,7 @@ import hljs from 'highlight.js';
  */
 function initializeMarked(): void {
   // Configure marked options
+  // ponytail: highlighting is a no-op since marked v5; marked-highlight is the upgrade path
   marked.setOptions({
     breaks: true,  // Convert \n to <br>
     gfm: true,     // GitHub Flavored Markdown
@@ -27,7 +28,7 @@ function initializeMarked(): void {
       // Fallback: no highlighting
       return code;
     }
-  });
+  } as Parameters<typeof marked.setOptions>[0]);
 }
 
 // Initialize on module load
