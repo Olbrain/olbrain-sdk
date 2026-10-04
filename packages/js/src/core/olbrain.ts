@@ -127,8 +127,16 @@ export class Olbrain {
     }
     const data: any = await res.json().catch(() => undefined);
     if (res.ok) return data as T;
-    const code: string = data?.error?.code ?? 'error';
-    const message: string = data?.error?.message ?? res.statusText ?? 'Request failed';
+    // Our API: {error:{code,message}}. Runtime errors pass through as FastAPI {detail: string | {code,message} | [...]}.
+    const detail = data?.detail;
+    const pick = (k: 'code' | 'message'): string | undefined =>
+      [data?.error?.[k], typeof detail === 'object' && !Array.isArray(detail) ? detail?.[k] : undefined, data?.[k]]
+        .find((v) => typeof v === 'string' && v);
+    const code: string = pick('code') ?? 'error';
+    const message: string = data?.error?.message
+      ?? (typeof detail === 'string' && detail ? detail : undefined)
+      ?? pick('message')
+      ?? (res.statusText || 'Request failed');
     if (BILLING_CODES.has(code)) throw new BillingError(res.status, code, message);
     if (res.status === 401) throw new AuthenticationError(message);
     if (res.status === 404) throw new NotFoundError(code, message);

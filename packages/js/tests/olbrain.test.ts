@@ -69,4 +69,21 @@ describe('Olbrain', () => {
     expect(err).toBeInstanceOf(Type);
     if (err instanceof ApiError) expect(err.code).toBe(code);
   });
+
+  it('keeps the reason from a runtime {detail} body and survives an empty body', async () => {
+    const olbrain = new Olbrain({ apiKey: 'ak_1' });
+    fetchMock.mockResolvedValue(reply(400, { detail: 'Workflow must be active' }));
+    let err = await olbrain.runs.list('wf').catch((e) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err.message).toBe('Workflow must be active');
+
+    fetchMock.mockResolvedValue(reply(409, { detail: { code: 'x', message: 'y' } }));
+    err = await olbrain.runs.list('wf').catch((e) => e);
+    expect([err.status, err.code, err.message]).toEqual([409, 'x', 'y']);
+
+    fetchMock.mockResolvedValue(reply(502, undefined));
+    err = await olbrain.runs.list('wf').catch((e) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err.code).toBe('error');
+  });
 });

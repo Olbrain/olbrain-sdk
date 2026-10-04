@@ -21,7 +21,7 @@ jobs:
           registry-url: https://registry.npmjs.org
       - name: The tag must match package.json
         run: test "js-v$(node -p "require('./package.json').version")" = "${GITHUB_REF_NAME}"
-      - run: npm install --no-audit --no-fund
+      - run: npm ci --no-audit --no-fund
       - run: npm run typecheck
       - run: npx vitest run
       - run: npm run build
