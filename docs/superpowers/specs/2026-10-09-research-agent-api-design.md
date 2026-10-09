@@ -40,8 +40,16 @@ review pass.
 - webhook-service already relays SSE (`src/sse.ts`, `splitSseFrames`) and
   forwards with a minted OIDC token (`src/forward.ts`).
 - The LB backend service sets `timeout_sec = 30` (`terraform/backends.tf:28`);
-  Cloud Run is `--timeout=900s`. Whether the 30 s applies to this serverless
-  NEG is **unverified** — see Prerequisite.
+  the Cloud Run request timeout is 3600 s (`terraform/dispatcher.tf:61`).
+  `variables.tf:56` records conversational turns over 60 s reaching the
+  dispatcher through this LB, which strongly suggests the 30 s does not cut a
+  serverless NEG — still **unverified**, see Prerequisite.
+- research-design and research-runtime are `--no-allow-unauthenticated`
+  (IAM `run.invoker` only, no caller allowlist). research-runtime's Pub/Sub
+  push routes trust `run.invoker` alone (`app/routers/pubsub_push.py:27`), so
+  the forward allowlist is the only thing keeping a signed-in user off them.
+- A step's `ts` is a Firestore server Timestamp (`app/lifecycle/step_emitter.py`),
+  microsecond precision; message `ts` is an ISO string.
 
 ## Architecture
 
@@ -130,6 +138,18 @@ Webhook-side path: `/api/agents/:agentId/research/<the upstream path minus
 Mutating = any non-GET. SSE and the long POSTs (`review.run`, `review.apply`)
 use a per-route forward timeout of 600 s (the upstream's own
 `LONG_LLM_CALL_MS` headroom); the rest use `config.forwardTimeoutMs`.
+Request bodies (JSON and the multipart attachment upload) are streamed
+through unbuffered.
+
+Upstream **4xx bodies pass through verbatim** — research's 4xx details are
+written for people (approve-plan's `{error, message, fields}`, retry's
+precondition wording) and noesis shows them as-is. This is a deliberate
+exception to errors.ts's phrase-book rule, which exists for external
+customers; research routes have none (sign-ins only). 5xx and transport
+failures still collapse to `upstream_error` / `upstream_timeout`.
+
+CORS: the research routes get their own `cors()` (same origin allowlist,
+`AGENT_API_ALLOWED_ORIGINS`) with methods GET, POST, PUT, PATCH, DELETE.
 
 #### Live snapshot reads (polled)
 
@@ -151,17 +171,26 @@ is a hash of `data`.
 
 #### Steps stream (SSE)
 
-`GET /api/agents/:agentId/research/runs/:r/steps/stream?after=<iso ts>`
+`GET /api/agents/:agentId/research/runs/:r/steps/stream?after=<cursor>`
 
-1. Backlog: steps with `ts > after` ordered by `ts`, limit 500, one
-   `event: step` frame each.
-2. Then a Firestore listener on the same query; each added/changed step → a
-   `step` frame. A heartbeat comment every 15 s.
-3. The server ends the stream with `event: reconnect` at
-   `STEPS_STREAM_MAX_SECONDS` (default 25; raise to 840 once the probe shows
-   the LB allows it), and with `event: end` once the run doc reaches a terminal
-   status.
-4. On client abort or stream end the listener is detached (tested).
+The cursor is `<seconds>.<9-digit nanos>` of the last step's `ts` — opaque to
+the SDK, exact to the microsecond so a reconnect neither skips nor repeats.
+Every frame is a single `data:` line of JSON, the same framing
+research-runtime's own streams use:
+
+1. One Firestore listener on `steps` ordered by `ts`, `startAfter(cursor)`,
+   no limit. Its first snapshot is the backlog; each later added step is
+   one `{"type":"step","step":{…},"cursor":"…"}` frame. A heartbeat comment
+   every 15 s.
+2. A second listener on the run doc. Once the status is terminal
+   (`completed`, `failed`, `canceled` — not `awaiting_review`) **and** the
+   steps listener has delivered its first snapshot, the server detaches both,
+   does one final `get()` of steps after the cursor (so nothing written
+   before the status flip is lost), writes them, then `{"type":"end"}`.
+3. At `STEPS_STREAM_MAX_SECONDS` (default 25; raise to 840 once the probe
+   shows the LB allows it) it writes `{"type":"reconnect","cursor":"…"}`.
+4. On client abort or stream end both listeners are detached (tested).
+5. A malformed `after` → 400 `bad_request`.
 
 ### SDK (`packages/js`, 1.2.1 → 1.3.0)
 
@@ -186,7 +215,9 @@ existing changes. Every method takes `agentId` first. Names mirror noesis's
   On `reconnect` or a dropped connection it reopens with `after=<last ts>`
   (backoff 1 s → 30 s on repeated failure); on `end` it stops.
 - **Errors**: forwarded failures use the existing `request()` mapping
-  (`ApiError`, `NotFoundError`, `AuthenticationError`…). Live reads degrade
+  (`ApiError`, `NotFoundError`, `AuthenticationError`…). `ApiError` gains an
+  optional `detail` carrying the upstream's parsed `detail` (so a 409's
+  `fields` survive). Live reads degrade
   like noesis: `runSteps` and `reportVersions` hand `cb([])`, `session`,
   `plan`, `run` hand `cb(null)`, on a failed read — and keep polling.
 
@@ -195,13 +226,14 @@ Timestamp handling belong to the screen port.
 
 ## Prerequisite: the 30 s question
 
-Before any implementation: hold one SSE response open for 90 s through
-webhook.olbrain.com (a throwaway route behind a flag, or an existing
-streamed conversational turn) and record where it is cut.
+Before any deploy: find out whether the LB lets a request through
+webhook.olbrain.com run past 30 s — from the LB request logs (any
+`httpRequest.latency` over 30 s on the webhook backend with a 2xx), or, if
+there are none, by timing one long streamed conversational turn.
 
 - If it survives: set `STEPS_STREAM_MAX_SECONDS=840`.
 - If it is cut at 30 s: raising `timeout_sec` in `terraform/backends.tf`
-  (to 900, matching Cloud Run) and applying it is a **blocker** — research
+  (to 3600, matching Cloud Run) and applying it is a **blocker** — research
   turns, the review streams and `review.run`/`review.apply` all routinely
   exceed 30 s. The steps stream alone would survive via 25 s reconnects.
 
