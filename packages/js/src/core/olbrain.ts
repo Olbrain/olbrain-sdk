@@ -55,6 +55,7 @@ const BILLING_CODES = new Set([
   'insufficient_funds', 'credit_limit_exceeded', 'subscription_suspended', 'subscription_inactive', 'billing_unavailable',
 ]);
 const enc = encodeURIComponent;
+type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 export class Olbrain {
   private readonly baseUrl: string;
@@ -108,25 +109,53 @@ export class Olbrain {
     return this.request<Record<string, unknown>>('POST', `/api/agents/${enc(agentId)}/runs/${enc(runId)}/${verb}`);
   }
 
-  private async request<T>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<T> {
+  /**
+   * One authenticated call. The timeout covers getting the response headers
+   * only — a stream's body may run for minutes. The caller's signal aborts the
+   * whole exchange, body included.
+   */
+  private async send(
+    method: Method,
+    path: string,
+    body?: unknown,
+    opts: { signal?: AbortSignal; stream?: boolean; timeoutMs?: number } = {},
+  ): Promise<Response> {
     const token = this.config.apiKey ?? (await this.config.getIdToken!());
     const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
-    if (body !== undefined) headers['Content-Type'] = 'application/json';
+    const isForm = typeof FormData !== 'undefined' && body instanceof FormData;
+    if (body !== undefined && !isForm) headers['Content-Type'] = 'application/json';
+    if (opts.stream) headers.Accept = 'text/event-stream';
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    if (opts.signal?.aborted) controller.abort();
+    opts.signal?.addEventListener('abort', () => controller.abort());
+    const timeoutMs = opts.timeoutMs ?? this.timeoutMs;
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
     let res: Response;
     try {
       res = await fetch(`${this.baseUrl}${path}`, {
-        method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal: controller.signal,
+        method,
+        headers,
+        body: body === undefined ? undefined : isForm ? (body as FormData) : JSON.stringify(body),
+        signal: controller.signal,
       });
     } catch (err) {
       const e = err as Error;
-      throw new NetworkError(e?.name === 'AbortError' ? `Request timed out after ${this.timeoutMs}ms` : e?.message || 'Network error');
+      if (e?.name !== 'AbortError') throw new NetworkError(e?.message || 'Network error');
+      throw new NetworkError(opts.signal?.aborted ? 'Request aborted' : `Request timed out after ${timeoutMs}ms`);
     } finally {
       clearTimeout(timer);
     }
+    if (!res.ok) throw await this.toError(res);
+    return res;
+  }
+
+  private async request<T>(method: Method, path: string, body?: unknown, opts: { timeoutMs?: number } = {}): Promise<T> {
+    const res = await this.send(method, path, body, opts);
+    return (await res.json().catch(() => undefined)) as T;
+  }
+
+  private async toError(res: Response): Promise<Error> {
     const data: any = await res.json().catch(() => undefined);
-    if (res.ok) return data as T;
     // Our API: {error:{code,message}}. Runtime errors pass through as FastAPI {detail: string | {code,message} | [...]}.
     const detail = data?.detail;
     const pick = (k: 'code' | 'message'): string | undefined =>
@@ -137,13 +166,13 @@ export class Olbrain {
       ?? (typeof detail === 'string' && detail ? detail : undefined)
       ?? pick('message')
       ?? (res.statusText || 'Request failed');
-    if (BILLING_CODES.has(code)) throw new BillingError(res.status, code, message);
-    if (res.status === 401) throw new AuthenticationError(message);
-    if (res.status === 404) throw new NotFoundError(code, message);
+    if (BILLING_CODES.has(code)) return new BillingError(res.status, code, message);
+    if (res.status === 401) return new AuthenticationError(message);
+    if (res.status === 404) return new NotFoundError(code, message);
     if (res.status === 429) {
       const retryAfter = Number(res.headers.get('Retry-After'));
-      throw new RateLimitError(message, Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : undefined);
+      return new RateLimitError(message, Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : undefined);
     }
-    throw new ApiError(res.status, code, message);
+    return new ApiError(res.status, code, message, detail);
   }
 }
