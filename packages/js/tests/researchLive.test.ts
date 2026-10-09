@@ -143,4 +143,30 @@ describe('watchSteps', () => {
     stop();
     expect(signal.aborted).toBe(true);
   });
+
+  it('a reconnect that brought no step backs off instead of spinning', async () => {
+    vi.useFakeTimers();
+    const open = vi.fn().mockResolvedValue(stream({ type: 'reconnect', cursor: null }));
+    const stop = watchSteps(open, vi.fn());
+    await vi.advanceTimersByTimeAsync(0);
+    expect(open).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(999);
+    expect(open).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(open).toHaveBeenCalledTimes(2);
+    stop();
+    vi.useRealTimers();
+  });
+
+  it("a quiet run's reconnect at the server cap reopens at once", async () => {
+    vi.useFakeTimers();
+    const capped = () => new Promise<Response>((r) => setTimeout(() => r(stream({ type: 'reconnect', cursor: null })), 25_000));
+    const open = vi.fn().mockImplementation(capped);
+    const stop = watchSteps(open, vi.fn());
+    await vi.advanceTimersByTimeAsync(25_000);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(open).toHaveBeenCalledTimes(2);
+    stop();
+    vi.useRealTimers();
+  });
 });

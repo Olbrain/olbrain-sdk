@@ -89,12 +89,15 @@ export function watchSteps(
     while (!stopped) {
       ctrl = new AbortController();
       let next: 'end' | 'reconnect' | 'failed' = 'failed';
+      let progressed = false;
+      const openedAt = Date.now();
       try {
         const res = await open(cursor, ctrl.signal);
         for await (const frame of readSse(res.body!)) {
           const f = frame as { type?: string; step?: unknown; cursor?: string | null };
           if (f.type === 'step') {
             steps.push(f.step);
+            progressed = true;
             cursor = f.cursor ?? cursor;
             backoff = 1000;
             if (!stopped) report();
@@ -111,7 +114,10 @@ export function watchSteps(
       // Nothing delivered yet: say "no steps", as noesis's error callback does.
       if (!reported) report();
       if (next === 'end') return;
-      if (next === 'failed') {
+      // A fast, empty reconnect is how the server reports a listener error —
+      // back off, or a Firestore outage spins every open screen. A quiet run's
+      // reconnect at the server's cap (≥ 25 s) reopens at once.
+      if (next === 'failed' || (!progressed && Date.now() - openedAt < 5000)) {
         await new Promise((r) => setTimeout(r, backoff));
         backoff = Math.min(backoff * 2, 30_000);
       }

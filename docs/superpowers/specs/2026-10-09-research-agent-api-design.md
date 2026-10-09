@@ -246,6 +246,17 @@ from upstream — the same as in Noesis today. webhook-service does not mask it.
 ## Security summary
 
 - Sign-ins only; `ak_` refused on every research route.
+- **Org members only** (creator, active membership, or active members
+  subdoc — `isOrgMember`), not Screens' `screen_users` grants. The live reads
+  use admin credentials, so they must admit no one the research services and
+  firestore.rules would refuse. (Final-review ruling, 2026-10-09.)
+- **Private reports**: the steps stream and `live/runs/:r/report-versions`
+  carry report text, so they apply research-design's `may_read`
+  (`research_report_shares/{runId}`: absent / organization / public → allow;
+  private → only `visibility_set_by`). The run doc itself stays
+  member-readable, as under firestore.rules.
+- Polls and streams don't call `recordUsage`; only forwarded calls count as
+  requests processed.
 - Ownership guard before every forward and read that names an id.
 - Exact allowlist; internal, `/v1/*` and public routes unreachable.
 - The user's token is sent only as `X-User-Authorization`; never logged
