@@ -109,7 +109,9 @@ export class Olbrain {
   /** The research console: sessions, streamed turns, plans, runs, reports, review. Sign-ins only. */
   readonly research = createResearch({
     request: (method, path, body, opts) => this.request(method, path, body, opts),
-    stream: (method, path, body, signal) => this.send(method, path, body, { signal, stream: true }),
+    // research-runtime sends headers with its first frame, which can be a
+    // minute in (searching), so a stream waits as long as a review pass.
+    stream: (method, path, body, signal) => this.send(method, path, body, { signal, stream: true, timeoutMs: 600_000 }),
   });
 
   private control(agentId: string, runId: string, verb: 'cancel' | 'pause' | 'retry' | 'resume') {

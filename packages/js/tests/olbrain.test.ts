@@ -99,3 +99,21 @@ describe('Olbrain transport', () => {
     expect(err.detail).toEqual(detail);
   });
 });
+
+describe('Olbrain research streams', () => {
+  it('wait past the 30 s default for headers: a research turn sends nothing until its first frame', async () => {
+    vi.useFakeTimers();
+    try {
+      let signal!: AbortSignal;
+      fetchMock.mockImplementation((_u: string, init: RequestInit) => { signal = init.signal!; return new Promise(() => {}); });
+      const it = new Olbrain({ getIdToken: async () => 't' }).research.sessions.streamMessage('ra', 's', { content: 'hi' });
+      void it.next().catch(() => {});
+      await vi.advanceTimersByTimeAsync(45_000);
+      expect(signal.aborted).toBe(false);
+      await vi.advanceTimersByTimeAsync(600_000);
+      expect(signal.aborted).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
