@@ -8,6 +8,8 @@ export { AgentClient } from './core/client';
 
 export { Olbrain } from './core/olbrain';
 export type { OlbrainConfig, Run, RunSummary, Approval, ResolveInput, ResolveResult } from './core/olbrain';
+export type { StreamMessageInput } from './core/research';
+export type { LiveSubscription } from './core/researchLive';
 
 // Export types
 export type {

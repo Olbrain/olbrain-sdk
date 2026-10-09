@@ -107,6 +107,27 @@ await olbrain.approvals.resolve(agentId, runId, { exceptionId: pending[0].except
 
 Errors carry the API's code: `BillingError` (the organization can't pay), `NotFoundError`, `AuthenticationError`, `RateLimitError`, and `ApiError` for everything else.
 
+## Research agents
+
+Sign-ins only (`getIdToken`); the agent must be bound to a screen in its org.
+
+```js
+const olbrain = new Olbrain({ getIdToken: () => user.getIdToken() });
+const r = olbrain.research;
+
+const { session_id } = await r.sessions.create(agentId);
+for await (const ev of r.sessions.streamMessage(agentId, session_id, { content: 'Size the Indian EV charger market' })) {
+  if (ev.type === 'text_delta') render(ev.text);
+}
+
+// Live reads return an unsubscribe function (with .setActive / .refresh).
+const stopMessages = r.live.messages(agentId, session_id, (messages) => draw(messages));
+const stopRun = r.live.run(agentId, runId, (run) => drawRun(run));        // null if unreadable
+const stopSteps = r.live.runSteps(agentId, runId, (steps) => drawSteps(steps));
+```
+
+Every method takes the research agent's id first; names mirror Noesis's research services.
+
 ## 🎯 Core Concepts
 
 ### AgentClient
