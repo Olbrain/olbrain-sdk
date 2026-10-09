@@ -5,6 +5,8 @@
  * logic. Every call takes the research agent's id first (== its template id).
  */
 import { readSse } from './sse';
+import { KEEP, poll, watchSteps } from './researchLive';
+import type { LiveSubscription } from './researchLive';
 
 export type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
@@ -35,6 +37,10 @@ export function createResearch(t: ResearchTransport) {
   const session = (agentId: string, sessionId: string) => `${root(agentId)}/sessions/${enc(sessionId)}`;
   const run = (agentId: string, runId: string) => `${root(agentId)}/runs/${enc(runId)}`;
   const report = (agentId: string, runId: string) => `${root(agentId)}/reports/${enc(runId)}`;
+  type Snapshot<T> = { etag: string; data: T };
+  const snapshot = <T>(path: string) => () => t.request<Snapshot<T>>('GET', path);
+  // live.messages subscriptions per session, so a completed turn can refresh them at once.
+  const messageSubs = new Map<string, Set<LiveSubscription>>();
 
   async function* frames(res: Promise<Response>): AsyncGenerator<Json> {
     const r = await res;
@@ -42,7 +48,14 @@ export function createResearch(t: ResearchTransport) {
   }
 
   async function* streamTurn(agentId: string, sessionId: string, input: StreamMessageInput, signal?: AbortSignal): AsyncGenerator<Json> {
-    yield* frames(t.stream('POST', `${session(agentId, sessionId)}/messages/stream`, input, signal));
+    for await (const ev of frames(t.stream('POST', `${session(agentId, sessionId)}/messages/stream`, input, signal))) {
+      yield ev;
+      // The finished message is persisted server-side and read through
+      // live.messages — re-read it now instead of on the next 2 s tick.
+      if ((ev as { type?: string } | null)?.type === 'complete') {
+        messageSubs.get(`${agentId}/${sessionId}`)?.forEach((sub) => sub.refresh());
+      }
+    }
   }
 
   return {
@@ -110,6 +123,43 @@ export function createResearch(t: ResearchTransport) {
     },
     templates: {
       versions: (agentId: string) => t.request<Json>('GET', `${root(agentId)}/versions`),
+    },
+    messages: {
+      /** One page of messages older than `beforeTs`, in reading order (noesis loadOlderMessages). */
+      older: async (agentId: string, sessionId: string, beforeTs: string) =>
+        (await t.request<Snapshot<Json[]>>('GET', `${root(agentId)}/live/sessions/${enc(sessionId)}/messages?before=${enc(beforeTs)}`)).data,
+    },
+    live: {
+      session: (agentId: string, sessionId: string, cb: (s: Json | null) => void, opts: { active?: boolean } = {}) =>
+        poll(snapshot<Json>(`${root(agentId)}/live/sessions/${enc(sessionId)}`), cb, null, opts.active),
+      messages: (agentId: string, sessionId: string, cb: (m: Json[]) => void, opts: { active?: boolean } = {}) => {
+        const key = `${agentId}/${sessionId}`;
+        const sub = poll(snapshot<Json[]>(`${root(agentId)}/live/sessions/${enc(sessionId)}/messages`), cb, KEEP, opts.active);
+        const set = messageSubs.get(key) ?? new Set<LiveSubscription>();
+        set.add(sub);
+        messageSubs.set(key, set);
+        const unsub = (() => {
+          sub();
+          set.delete(sub);
+          if (!set.size) messageSubs.delete(key);
+        }) as LiveSubscription;
+        unsub.setActive = sub.setActive;
+        unsub.refresh = sub.refresh;
+        return unsub;
+      },
+      plan: (agentId: string, planId: string, cb: (p: Json | null) => void, opts: { active?: boolean } = {}) =>
+        poll(snapshot<Json>(`${root(agentId)}/live/plans/${enc(planId)}`), cb, null, opts.active),
+      run: (agentId: string, runId: string, cb: (r: Json | null) => void, opts: { active?: boolean } = {}) =>
+        poll(snapshot<Json>(`${root(agentId)}/live/runs/${enc(runId)}`), cb, null, opts.active),
+      reportVersions: (agentId: string, runId: string, cb: (v: Json[]) => void, opts: { active?: boolean } = {}) =>
+        poll(snapshot<Json[]>(`${root(agentId)}/live/runs/${enc(runId)}/report-versions`), cb, [], opts.active),
+      templateRuns: (agentId: string, cb: (runs: Json[]) => void, opts: { active?: boolean } = {}) =>
+        poll(snapshot<Json[]>(`${root(agentId)}/live/runs`), cb, KEEP, opts.active),
+      runSteps: (agentId: string, runId: string, cb: (steps: Json[]) => void) =>
+        watchSteps(
+          (after, signal) => t.stream('GET', `${run(agentId, runId)}/steps/stream${after ? `?after=${enc(after)}` : ''}`, undefined, signal),
+          cb,
+        ),
     },
   };
 }

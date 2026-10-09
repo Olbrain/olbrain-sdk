@@ -132,3 +132,51 @@ describe('olbrain.research streams', () => {
     expect(signal.aborted).toBe(true);
   });
 });
+
+describe('olbrain.research live', () => {
+  it('live.run polls the snapshot route and hands back data', async () => {
+    fetchMock.mockResolvedValue(reply(200, { etag: 'e1', data: { id: 'r1', status: 'running' } }));
+    const cb = vi.fn();
+    const sub = olbrain().research.live.run('ra 1', 'r1', cb);
+    await vi.waitFor(() => expect(cb).toHaveBeenCalledWith({ id: 'r1', status: 'running' }));
+    expect(lastCall()[0]).toBe(`${B}/live/runs/r1`);
+    sub();
+  });
+
+  it('live.run degrades to null and live.reportVersions to [] on a refused read', async () => {
+    fetchMock.mockResolvedValue(reply(404, { error: { code: 'agent_not_found', message: 'x' } }));
+    const run = vi.fn();
+    const versions = vi.fn();
+    const a = olbrain().research.live.run('ra 1', 'r1', run);
+    const b = olbrain().research.live.reportVersions('ra 1', 'r1', versions);
+    await vi.waitFor(() => { expect(run).toHaveBeenCalledWith(null); expect(versions).toHaveBeenCalledWith([]); });
+    a(); b();
+  });
+
+  it('a completed turn makes live.messages re-read at once', async () => {
+    const research = olbrain().research;
+    fetchMock.mockResolvedValue(reply(200, { etag: 'm-1', data: [{ id: 'u1' }] }));
+    const cb = vi.fn();
+    const sub = research.live.messages('ra 1', 's1', cb);
+    await vi.waitFor(() => expect(cb).toHaveBeenCalledTimes(1));
+    fetchMock.mockResolvedValueOnce(sse({ type: 'complete', message_id: 'm2' }));
+    fetchMock.mockResolvedValue(reply(200, { etag: 'm-2', data: [{ id: 'u1' }, { id: 'm2' }] }));
+    for await (const _ of research.sessions.streamMessage('ra 1', 's1', { content: 'go' })) { /* drain */ }
+    await vi.waitFor(() => expect(cb).toHaveBeenLastCalledWith([{ id: 'u1' }, { id: 'm2' }]), { timeout: 500 });
+    sub();
+  });
+
+  it('messages.older reads the page before a timestamp', async () => {
+    fetchMock.mockResolvedValue(reply(200, { etag: 'x', data: [{ id: 'm0' }] }));
+    expect(await olbrain().research.messages.older('ra 1', 's1', '2026-10-09T10:00:00Z')).toEqual([{ id: 'm0' }]);
+    expect(lastCall()[0]).toBe(`${B}/live/sessions/s1/messages?before=2026-10-09T10%3A00%3A00Z`);
+  });
+
+  it('live.runSteps opens the steps stream with the cursor', async () => {
+    fetchMock.mockResolvedValue(sse({ type: 'step', step: { id: 'a' }, cursor: '1.000000000' }, { type: 'end', cursor: '1.000000000' }));
+    const cb = vi.fn();
+    olbrain().research.live.runSteps('ra 1', 'r1', cb);
+    await vi.waitFor(() => expect(cb).toHaveBeenCalledWith([{ id: 'a' }]));
+    expect(lastCall()[0]).toBe(`${B}/runs/r1/steps/stream`);
+  });
+});
