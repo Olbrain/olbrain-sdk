@@ -6,6 +6,8 @@
 import {
   ApiError, AuthenticationError, BillingError, NetworkError, NotFoundError, RateLimitError, ValidationError,
 } from './exceptions';
+import { createResearch } from './research';
+import type { Method } from './research';
 
 export interface OlbrainConfig {
   /** An Olbrain access key, ak_… Give this or getIdToken. */
@@ -55,7 +57,6 @@ const BILLING_CODES = new Set([
   'insufficient_funds', 'credit_limit_exceeded', 'subscription_suspended', 'subscription_inactive', 'billing_unavailable',
 ]);
 const enc = encodeURIComponent;
-type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 export class Olbrain {
   private readonly baseUrl: string;
@@ -104,6 +105,12 @@ export class Olbrain {
         ...(input.modifiedData ? { modified_data: input.modifiedData } : {}),
       }),
   };
+
+  /** The research console: sessions, streamed turns, plans, runs, reports, review. Sign-ins only. */
+  readonly research = createResearch({
+    request: (method, path, body, opts) => this.request(method, path, body, opts),
+    stream: (method, path, body, signal) => this.send(method, path, body, { signal, stream: true }),
+  });
 
   private control(agentId: string, runId: string, verb: 'cancel' | 'pause' | 'retry' | 'resume') {
     return this.request<Record<string, unknown>>('POST', `/api/agents/${enc(agentId)}/runs/${enc(runId)}/${verb}`);
