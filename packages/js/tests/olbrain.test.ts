@@ -87,3 +87,15 @@ describe('Olbrain', () => {
     expect(err.code).toBe('error');
   });
 });
+
+describe('Olbrain transport', () => {
+  it('keeps the upstream detail on ApiError so structured 409s survive', async () => {
+    const detail = { error: 'subject_invalid', message: 'Add a subject first', fields: ['subject'] };
+    fetchMock.mockResolvedValue(reply(409, { detail }));
+    const err = await new Olbrain({ apiKey: 'ak_1' }).runs.get('wf', 'r1').catch((e) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err.status).toBe(409);
+    expect(err.message).toBe('Add a subject first');
+    expect(err.detail).toEqual(detail);
+  });
+});

@@ -92,11 +92,14 @@ export class StreamingError extends OlbrainError {
 export class ApiError extends OlbrainError {
   status: number;
   code: string;
-  constructor(status: number, code: string, message: string) {
+  /** The upstream's parsed `detail`, when it sent one (e.g. a 409's `{error, message, fields}`). */
+  detail?: unknown;
+  constructor(status: number, code: string, message: string, detail?: unknown) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.code = code;
+    this.detail = detail;
     Object.setPrototypeOf(this, ApiError.prototype);
   }
 }

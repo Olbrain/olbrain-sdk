@@ -19,3 +19,11 @@ describe('package exports', () => {
     expect(pkg.exports['./widget'].default).toBe('./dist/widget.widget.global.js');
   });
 });
+
+describe('1.3.0', () => {
+  it('ships the research namespace on Olbrain', async () => {
+    const { Olbrain } = await import('../src/index');
+    expect(new Olbrain({ getIdToken: async () => 't' }).research.live.runSteps).toBeTypeOf('function');
+    expect(pkg.version).toBe('1.3.0');
+  });
+});
