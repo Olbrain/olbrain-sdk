@@ -32,9 +32,9 @@ const { AgentClient, Olbrain } = require('@olbrain/js-sdk');
 
 ```html
 <!-- Browser, core only: global `Olbrain` (so the class is `Olbrain.Olbrain`) -->
-<script src="https://unpkg.com/@olbrain/js-sdk@1.3.1/dist/index.global.js"></script>
+<script src="https://unpkg.com/@olbrain/js-sdk@1.3.2/dist/index.global.js"></script>
 <!-- Browser, core + ChatWidget: global `OlbrainWidget` -->
-<script src="https://unpkg.com/@olbrain/js-sdk@1.3.1/dist/widget.widget.global.js"></script>
+<script src="https://unpkg.com/@olbrain/js-sdk@1.3.2/dist/widget.widget.global.js"></script>
 ```
 
 `ChatWidget` is **not** exported from the main entry. Get it from the widget
@@ -110,7 +110,7 @@ Check `success` as well as catching exceptions. A 200 response can still carry
 ## 2. `ChatWidget` — embeddable chat UI (browser only)
 
 ```html
-<script src="https://unpkg.com/@olbrain/js-sdk@1.3.1/dist/widget.widget.global.js"></script>
+<script src="https://unpkg.com/@olbrain/js-sdk@1.3.2/dist/widget.widget.global.js"></script>
 <script>
   const widget = new OlbrainWidget.ChatWidget({ agentId: '…', apiKey: 'sk_live_…' });
   widget.mount(); // or widget.mount('#chat') / widget.mount(element)
