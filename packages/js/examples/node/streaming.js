@@ -2,8 +2,7 @@
  * Streaming example for Node.js
  * Demonstrates real-time message delivery via Server-Sent Events
  *
- * Usage: npm install eventsource
- *        node streaming.js
+ * Usage: node streaming.js (Node 18+)
  */
 
 import { AgentClient } from '@olbrain/js-sdk';

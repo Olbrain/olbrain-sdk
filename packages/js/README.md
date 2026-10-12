@@ -2,6 +2,8 @@
 
 Official JavaScript/TypeScript SDK for Olbrain Agent Cloud. Add AI agent chatbots to your website or application with a single line of code.
 
+> **Coding assistants:** the complete API reference ships in the package as [`AGENTS.md`](AGENTS.md) (`node_modules/@olbrain/js-sdk/AGENTS.md`).
+
 ## 🚀 Quick Start
 
 ### For Websites (One-Line Integration)
@@ -75,9 +77,6 @@ chat();
 
 ```bash
 npm install @olbrain/js-sdk
-
-# For Node.js streaming support (optional)
-npm install eventsource
 ```
 
 ### TypeScript
@@ -473,7 +472,6 @@ API keys start with specific prefixes:
 
 - **Bundle Size:** ~30KB for core API, ~50KB for widget (gzipped)
 - **Zero Runtime Dependencies:** No external dependencies for browser builds
-- **Optional Dependencies:** `eventsource` for Node.js streaming
 
 ## 🔄 Session Persistence
 
@@ -509,13 +507,13 @@ MIT
 
 For issues, feature requests, or questions:
 
-1. Check [existing issues](https://github.com/anthropics/olbrain-js-sdk/issues)
-2. [Create a new issue](https://github.com/anthropics/olbrain-js-sdk/issues/new)
+1. Check [existing issues](https://github.com/Olbrain/olbrain-sdk/issues)
+2. [Create a new issue](https://github.com/Olbrain/olbrain-sdk/issues/new)
 3. Visit the [Olbrain documentation](https://docs.olbrain.com)
 
 ## 📚 Related Resources
 
-- [Python SDK](https://github.com/anthropics/olbrain-python-sdk)
+- [Python SDK](https://github.com/Olbrain/olbrain-sdk/tree/main/packages/python)
 - [Olbrain Documentation](https://docs.olbrain.com)
 - [API Reference](https://docs.olbrain.com/api)
 - [Getting Started Guide](https://docs.olbrain.com/getting-started)

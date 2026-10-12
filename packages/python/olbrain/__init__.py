@@ -2,6 +2,8 @@
 Olbrain Python SDK
 Simple client for Olbrain AI agents with real-time message streaming
 
+Full offline API reference: AGENTS.md next to this file.
+
 Example:
     >>> from olbrain import AgentClient
     >>>

@@ -6,6 +6,8 @@
 
 Official Python SDK for integrating Olbrain AI agents into your applications.
 
+> **Coding assistants:** the complete API reference ships in the package as [`olbrain/AGENTS.md`](olbrain/AGENTS.md) (`site-packages/olbrain/AGENTS.md`).
+
 ## Installation
 
 ```bash
@@ -18,8 +20,8 @@ For local development and testing:
 
 ```bash
 # Clone the repository
-git clone https://github.com/Olbrain/olbrain-python-sdk.git
-cd olbrain-python-sdk
+git clone https://github.com/Olbrain/olbrain-sdk.git
+cd olbrain-sdk/packages/python
 
 # Create virtual environment
 python3 -m venv venv
@@ -461,7 +463,7 @@ python examples/basic_usage.py
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/Olbrain/olbrain-python-sdk/issues)
+- **Issues**: [GitHub Issues](https://github.com/Olbrain/olbrain-sdk/issues)
 - **Documentation**: See [examples/](examples/) directory
 - **API Status**: Check [status page](https://olbrain.com/status)
 
@@ -476,6 +478,6 @@ Current version: **0.2.0**
 ## Links
 
 - [PyPI Package](https://pypi.org/project/olbrain-python-sdk/)
-- [GitHub Repository](https://github.com/Olbrain/olbrain-python-sdk)
-- [Report Issues](https://github.com/Olbrain/olbrain-python-sdk/issues)
+- [GitHub Repository](https://github.com/Olbrain/olbrain-sdk)
+- [Report Issues](https://github.com/Olbrain/olbrain-sdk/issues)
 - [Olbrain Website](https://olbrain.com)
