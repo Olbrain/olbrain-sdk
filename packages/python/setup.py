@@ -26,7 +26,8 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/Olbrain/olbrain-sdk",
-    packages=find_packages(),
+    packages=find_packages(exclude=["tests", "tests.*"]),
+    package_data={"olbrain": ["AGENTS.md"]},
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Developers",

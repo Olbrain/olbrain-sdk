@@ -18,6 +18,11 @@ describe('package exports', () => {
   it('points ./widget at the file tsup actually emits', () => {
     expect(pkg.exports['./widget'].default).toBe('./dist/widget.widget.global.js');
   });
+
+  it('exports VERSION equal to package.json', async () => {
+    const { VERSION } = await import('../src/index');
+    expect(VERSION).toBe(pkg.version);
+  });
 });
 
 describe('1.3.1', () => {

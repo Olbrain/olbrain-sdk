@@ -3,7 +3,7 @@ include README.md
 include LICENSE
 include requirements.txt
 include pyproject.toml
-recursive-include olbrain *.py
+recursive-include olbrain *.py *.md
 recursive-exclude * __pycache__
 recursive-exclude * *.py[co]
 global-exclude .DS_Store

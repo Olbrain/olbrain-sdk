@@ -61,10 +61,13 @@ async = [
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/Olbrain/olbrain-python-sdk"
-"Bug Reports" = "https://github.com/Olbrain/olbrain-python-sdk/issues"
-"Source" = "https://github.com/Olbrain/olbrain-python-sdk"
+"Homepage" = "https://github.com/Olbrain/olbrain-sdk/tree/main/packages/python"
+"Bug Reports" = "https://github.com/Olbrain/olbrain-sdk/issues"
+"Source" = "https://github.com/Olbrain/olbrain-sdk"
 "Documentation" = "https://docs.olbrain.com/python-sdk"
+
+[tool.setuptools.package-data]
+olbrain = ["AGENTS.md"]
 
 [tool.setuptools_scm]
 write_to = "olbrain/_version.py"

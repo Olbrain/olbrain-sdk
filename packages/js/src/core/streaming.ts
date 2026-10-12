@@ -4,24 +4,22 @@
 
 import { StreamConfig, Message, MessageCallback, ErrorCallback } from './types';
 import { StreamingError } from './exceptions';
-import {
-  formatAuthHeader,
-  delay,
-  getExponentialBackoffDelay,
-  getEventSourceImpl,
-} from './utils';
+import { formatAuthHeader, getExponentialBackoffDelay } from './utils';
+import { readSse } from './sse';
 
 /**
- * Handles SSE streaming for a session
+ * Handles SSE streaming for a session. Reads the stream with fetch, not
+ * EventSource: the endpoint authenticates by header only, and a browser's
+ * EventSource can't send headers.
  */
 export class MessageStream {
   private config: StreamConfig;
   private onMessage: MessageCallback;
   private onError?: ErrorCallback;
-  private eventSource?: EventSource;
+  private controller?: AbortController;
   private isRunning: boolean = false;
   private reconnectAttempt: number = 0;
-  private reconnectTimeout?: NodeJS.Timeout;
+  private reconnectTimeout?: ReturnType<typeof setTimeout>;
 
   constructor(config: StreamConfig, onMessage: MessageCallback, onError?: ErrorCallback) {
     this.config = config;
@@ -39,7 +37,7 @@ export class MessageStream {
 
     this.isRunning = true;
     this.reconnectAttempt = 0;
-    await this._connect();
+    void this._run();
   }
 
   /**
@@ -47,124 +45,65 @@ export class MessageStream {
    */
   stop(): void {
     this.isRunning = false;
-    this._cleanup();
+    this.controller?.abort();
+    clearTimeout(this.reconnectTimeout);
   }
 
   /**
-   * Establish SSE connection
+   * Read the stream until stopped, reconnecting with backoff whenever it ends or fails
    */
-  private async _connect(): Promise<void> {
-    try {
-      const EventSourceImpl = await getEventSourceImpl();
-      const url = `${this.config.baseUrl}/sessions/${this.config.sessionId}/stream`;
-      const headers: Record<string, string> = {
-        'Authorization': formatAuthHeader(this.config.apiKey),
-        'X-Agent-ID': this.config.agentId,
-      };
-
-      // Browsers ignore `headers`; only the Node `eventsource` polyfill honours it
-      this.eventSource = new EventSourceImpl(url, { headers } as EventSourceInit);
-
-      // Handle incoming messages
-      this.eventSource.addEventListener('message', (event: any) => {
-        this._handleMessage(event);
-      });
-
-      // Handle ping/keepalive
-      this.eventSource.addEventListener('ping', () => {
-        // Skip keepalive messages
-      });
-
-      // Handle errors
-      this.eventSource.addEventListener('error', () => {
-        this._handleConnectionError();
-      });
-
-      this.reconnectAttempt = 0;
-    } catch (error) {
-      this._handleConnectionError();
-    }
-  }
-
-  /**
-   * Handle incoming message event
-   */
-  private _handleMessage(event: any): void {
-    if (!event.data) {
-      return;
-    }
-
-    try {
-      const data = JSON.parse(event.data);
-
-      // Skip ping/keepalive messages
-      if (data.type === 'ping' || data.type === 'keepalive') {
+  private async _run(): Promise<void> {
+    const url = `${this.config.baseUrl}/sessions/${encodeURIComponent(this.config.sessionId)}/stream`;
+    while (this.isRunning) {
+      this.controller = new AbortController();
+      let reason = 'Connection lost';
+      try {
+        const res = await fetch(url, {
+          headers: {
+            'Authorization': formatAuthHeader(this.config.apiKey),
+            'X-Agent-ID': this.config.agentId,
+            'Accept': 'text/event-stream',
+          },
+          signal: this.controller.signal,
+        });
+        if (!res.ok || !res.body) {
+          reason = `Stream refused (HTTP ${res.status})`;
+        } else {
+          this.reconnectAttempt = 0;
+          for await (const data of readSse(res.body)) {
+            this._handleMessage(data);
+          }
+        }
+      } catch {
+        // dropped or aborted — reconnect below unless stopped
+      }
+      if (!this.isRunning) {
         return;
       }
 
-      // Parse and deliver message
-      if (data.role && data.content) {
-        const message: Message = {
-          role: data.role,
-          content: data.content,
-          timestamp: data.timestamp || new Date().toISOString(),
-          metadata: data.metadata,
-        };
-
-        this.onMessage(message);
-      }
-    } catch (error) {
-      if (this.onError) {
-        this.onError(
-          new StreamingError(`Failed to parse message: ${(error as Error).message}`)
-        );
-      }
-    }
-  }
-
-  /**
-   * Handle connection errors and attempt reconnection
-   */
-  private _handleConnectionError(): void {
-    if (!this.isRunning) {
-      return;
-    }
-
-    this._cleanup();
-
-    // Calculate backoff delay
-    const delay = getExponentialBackoffDelay(this.reconnectAttempt);
-
-    if (this.onError) {
-      this.onError(
-        new StreamingError(
-          `Connection lost. Reconnecting in ${delay}ms (attempt ${this.reconnectAttempt + 1})`
-        )
+      const delay = getExponentialBackoffDelay(this.reconnectAttempt);
+      this.reconnectAttempt++;
+      this.onError?.(
+        new StreamingError(`${reason}. Reconnecting in ${delay}ms (attempt ${this.reconnectAttempt})`)
       );
+      await new Promise((resolve) => {
+        this.reconnectTimeout = setTimeout(resolve, delay);
+      });
     }
-
-    this.reconnectAttempt++;
-
-    // Schedule reconnection
-    this.reconnectTimeout = setTimeout(async () => {
-      if (this.isRunning) {
-        await this._connect();
-      }
-    }, delay);
   }
 
   /**
-   * Clean up resources
+   * Deliver a parsed frame; connected/ping frames carry no role and are skipped
    */
-  private _cleanup(): void {
-    if (this.eventSource) {
-      this.eventSource.close();
-      this.eventSource = undefined;
-    }
-
-    if (this.reconnectTimeout) {
-      clearTimeout(this.reconnectTimeout);
-      this.reconnectTimeout = undefined;
+  private _handleMessage(data: any): void {
+    if (data?.role && data?.content) {
+      const message: Message = {
+        role: data.role,
+        content: data.content,
+        timestamp: data.timestamp || new Date().toISOString(),
+        metadata: data.metadata,
+      };
+      this.onMessage(message);
     }
   }
 }
