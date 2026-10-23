@@ -9,12 +9,12 @@ The type definitions are in `dist/index.d.ts`.
 
 | You want to… | Use | Auth |
 |---|---|---|
-| Chat with a conversational agent (send a message, get a reply) | `AgentClient` | `apiKey` starting `sk_live_`, `org_live_`, `sk_`, `org_` or `ak_` |
+| Chat with a conversational agent (send a message, get a reply) | `AgentClient` | `apiKey: 'ak_…'` (the only kind issued today; `sk_live_`, `org_live_`, `sk_` and `org_` still pass validation) |
 | Drop a chat bubble on a web page | `ChatWidget` (from the widget bundle) | same as `AgentClient` |
 | Trigger workflow agents, read/control runs, resolve approvals | `Olbrain` | `apiKey: 'ak_…'` **or** `getIdToken` (Olbrain sign-in) |
 | Drive a research agent (sessions, streamed turns, plans, reports) | `Olbrain#research` | `getIdToken` only. An `ak_` key gets `NotFoundError` (`agent_not_found`) |
 
-These are two separate HTTP clients with different base URLs and error rules.
+These are two separate HTTP clients with different error rules. Both default to `https://webhook.olbrain.com`.
 Don't mix their options.
 
 ## Install and import
@@ -32,9 +32,9 @@ const { AgentClient, Olbrain } = require('@olbrain/js-sdk');
 
 ```html
 <!-- Browser, core only: global `Olbrain` (so the class is `Olbrain.Olbrain`) -->
-<script src="https://unpkg.com/@olbrain/js-sdk@1.3.2/dist/index.global.js"></script>
+<script src="https://unpkg.com/@olbrain/js-sdk@1.4.0/dist/index.global.js"></script>
 <!-- Browser, core + ChatWidget: global `OlbrainWidget` -->
-<script src="https://unpkg.com/@olbrain/js-sdk@1.3.2/dist/widget.widget.global.js"></script>
+<script src="https://unpkg.com/@olbrain/js-sdk@1.4.0/dist/widget.widget.global.js"></script>
 ```
 
 `ChatWidget` is **not** exported from the main entry. Get it from the widget
@@ -49,7 +49,7 @@ bundle (`OlbrainWidget.ChatWidget`). Runtime requirements: global `fetch`,
 const client = new AgentClient({
   agentId: 'your-agent-id',          // required, non-empty
   apiKey: process.env.OLBRAIN_API_KEY!, // required, see prefixes above
-  baseUrl: undefined,                // default https://olbrain-agent-cloud-768934887465.us-central1.run.app
+  baseUrl: undefined,                // default https://webhook.olbrain.com
 });
 
 const sessionId = await client.createSession({ title: 'Support chat', userId: 'u_42' });
@@ -59,8 +59,9 @@ client.close();
 ```
 
 The constructor throws `ValidationError` if `apiKey` is missing or has the
-wrong prefix, or if `agentId` is empty. Every call is a `POST {baseUrl}/api/agent/webhook`
-with headers `Authorization: Bearer <apiKey>` and `X-Agent-ID: <agentId>`.
+wrong prefix, or if `agentId` is empty. Chat calls are `POST {baseUrl}/api/agents/webhook/{agentId}`;
+session reads are `GET {baseUrl}/api/agents/{agentId}/sessions/{id}` and `…/messages`. Every call sends
+`Authorization: Bearer <apiKey>`. A key limited to one agent gets 404 for any other agent.
 
 ### Methods
 
@@ -69,12 +70,12 @@ with headers `Authorization: Bearer <apiKey>` and `X-Agent-ID: <agentId>`.
 | `createSession(opts?: { title?, userId?, metadata? })` | `Promise<string>` (session id) | Sends `title` (default `'Chat Session'`) to the agent **as the first message**, so the agent sees it. Throws `OlbrainError` if no `session_id` comes back. |
 | `sendAndWait(sessionId, message, opts?: { metadata?, timeout? })` | `Promise<ChatResponse>` | Waits for the agent's reply. `timeout` is in ms (default 30000). The message is trimmed. An empty string throws `ValidationError`. |
 | `send(sessionId, message)` | `Promise<void>` | Same request as `sendAndWait`. It still waits for the server, then discards the reply. |
-| `getSession(sessionId)` | `Promise<SessionInfo>` | Best effort. On **any** error it logs a warning and returns a placeholder (`title: 'Session'`, `messageCount: 0`). It never throws. |
-| `updateSession(sessionId, { title?, metadata?, status?: 'active' \| 'archived' })` | `Promise<SessionInfo>` | Throws on error. Not every backend supports it. |
-| `deleteSession(sessionId)` | `Promise<void>` | Throws on error. Not every backend supports it. |
-| `getMessages(sessionId, limit = 100)` | `Promise<Message[]>` | Best effort. Returns `[]` on any error. |
-| `getSessionStats(sessionId)` | `Promise<SessionStats>` | Best effort. Returns zeros on any error. |
-| `listen(sessionId, onMessage, onError?)` | `Promise<void>` | SSE on `GET {baseUrl}/sessions/{id}/stream`. Reconnects with backoff (5 s doubling to 60 s), and each reconnect calls `onError(StreamingError)`. Frames without `role` and `content` (the `connected` and `ping` frames) are dropped. Uses `fetch`, so it sends the auth headers in both browsers and Node. A refused stream (e.g. HTTP 401) is reported through `onError` and retried. |
+| `getSession(sessionId)` | `Promise<SessionInfo>` | Throws `SessionNotFoundError` for an unknown session (or one of another agent). |
+| `updateSession(sessionId, updates)` | `Promise<SessionInfo>` | Always throws `OlbrainError`: the Olbrain API has no endpoint to change a session. |
+| `deleteSession(sessionId)` | `Promise<void>` | Always throws `OlbrainError`: the Olbrain API has no endpoint to delete a session. |
+| `getMessages(sessionId, limit = 100)` | `Promise<Message[]>` | Oldest first, at most 200. Throws on error. |
+| `getSessionStats(sessionId)` | `Promise<SessionStats>` | Message count, total tokens and timestamps from the session. Throws on error. |
+| `listen(sessionId, onMessage, onError?)` | `Promise<void>` | Polls the session's messages every 2 s and calls `onMessage` once for each message that arrives after it starts (earlier ones are not replayed). A refused read (e.g. HTTP 401) goes to `onError(StreamingError)` and is retried with backoff (5 s doubling to 60 s). |
 | `stopListening(sessionId)` | `void` | |
 | `close()` | `void` | Stops every stream. |
 
@@ -110,7 +111,7 @@ Check `success` as well as catching exceptions. A 200 response can still carry
 ## 2. `ChatWidget` — embeddable chat UI (browser only)
 
 ```html
-<script src="https://unpkg.com/@olbrain/js-sdk@1.3.2/dist/widget.widget.global.js"></script>
+<script src="https://unpkg.com/@olbrain/js-sdk@1.4.0/dist/widget.widget.global.js"></script>
 <script>
   const widget = new OlbrainWidget.ChatWidget({ agentId: '…', apiKey: 'sk_live_…' });
   widget.mount(); // or widget.mount('#chat') / widget.mount(element)
@@ -307,6 +308,5 @@ stop();
 
 ## Gotchas
 
-- `AgentClient` and `Olbrain` talk to different hosts and parse errors differently, as described above.
+- `AgentClient` and `Olbrain` parse errors differently, as described above.
 - Never ship an `ak_` key or a server secret to a browser. Front ends should use `getIdToken`.
-- `getSession`, `getMessages` and `getSessionStats` hide failures behind placeholder values, so a missing session looks like an empty one.

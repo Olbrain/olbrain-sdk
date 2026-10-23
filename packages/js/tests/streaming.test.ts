@@ -2,36 +2,55 @@
 import { describe, expect, it, vi, afterEach } from 'vitest';
 import { MessageStream } from '../src/core/streaming';
 
-const sse = (...frames: object[]) =>
-  new Response(frames.map((f) => `data: ${JSON.stringify(f)}\n\n`).join(''), { headers: { 'Content-Type': 'text/event-stream' } });
+const page = (...messages: object[]) => new Response(JSON.stringify({ messages }), { headers: { 'Content-Type': 'application/json' } });
+const config = { sessionId: 's1', apiKey: 'ak_x', agentId: 'a1', baseUrl: 'https://h' };
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.useRealTimers();
+});
 
 describe('MessageStream', () => {
-  it('authenticates by header, delivers messages and skips control frames', async () => {
-    const fetchMock = vi.fn().mockResolvedValueOnce(
-      sse({ type: 'connected', session_id: 's1' }, { type: 'ping' }, { role: 'assistant', content: 'hi', timestamp: 't1' }),
-    ).mockReturnValue(new Promise(() => {}));
+  it('polls the session messages and delivers only the ones that arrive after it starts', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(page({ message_id: 'm1', role: 'user', content: 'old', created_at: 't1' }))
+      .mockResolvedValueOnce(page({ message_id: 'm2', role: 'assistant', content: 'hi', created_at: 't2' }))
+      .mockResolvedValue(page());
     vi.stubGlobal('fetch', fetchMock);
     const got: unknown[] = [];
-    const stream = new MessageStream({ sessionId: 's1', apiKey: 'sk_x', agentId: 'a1', baseUrl: 'https://h' }, (m) => got.push(m));
+    const stream = new MessageStream(config, (m) => got.push(m));
 
     await stream.start();
-    await vi.waitFor(() => expect(got).toHaveLength(1));
+    await vi.advanceTimersByTimeAsync(2_000);
     stream.stop();
 
-    expect(got[0]).toEqual({ role: 'assistant', content: 'hi', timestamp: 't1', metadata: undefined });
-    const [url, init] = fetchMock.mock.calls[0];
-    expect(url).toBe('https://h/sessions/s1/stream');
-    expect(init.headers).toMatchObject({ Authorization: 'Bearer sk_x', 'X-Agent-ID': 'a1' });
+    expect(got).toEqual([{ role: 'assistant', content: 'hi', timestamp: 't2', metadata: undefined }]);
+    expect(fetchMock.mock.calls[0][0]).toBe('https://h/api/agents/a1/sessions/s1/messages?offset=0&limit=200');
+    expect(fetchMock.mock.calls[1][0]).toBe('https://h/api/agents/a1/sessions/s1/messages?offset=1&limit=200');
+    expect(fetchMock.mock.calls[0][1].headers).toMatchObject({ Authorization: 'Bearer ak_x' });
   });
 
-  it('reports a refused stream and stops reconnecting once stopped', async () => {
+  it('never delivers a message twice', async () => {
+    vi.useFakeTimers();
+    const m2 = { message_id: 'm2', role: 'assistant', content: 'hi', created_at: 't2' };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(page()).mockResolvedValueOnce(page(m2)).mockResolvedValue(page(m2)));
+    const got: unknown[] = [];
+    const stream = new MessageStream(config, (m) => got.push(m));
+
+    await stream.start();
+    await vi.advanceTimersByTimeAsync(6_000);
+    stream.stop();
+
+    expect(got).toHaveLength(1);
+  });
+
+  it('reports a refused read and stops polling once stopped', async () => {
     vi.useFakeTimers();
     const fetchMock = vi.fn().mockResolvedValue(new Response('no', { status: 401 }));
     vi.stubGlobal('fetch', fetchMock);
     const errors: Error[] = [];
-    const stream = new MessageStream({ sessionId: 's1', apiKey: 'sk_x', agentId: 'a1', baseUrl: 'https://h' }, () => {}, (e) => errors.push(e));
+    const stream = new MessageStream(config, () => {}, (e) => errors.push(e));
 
     await stream.start();
     await vi.waitFor(() => expect(errors).toHaveLength(1));
@@ -39,6 +58,5 @@ describe('MessageStream', () => {
     stream.stop();
     await vi.advanceTimersByTimeAsync(120_000);
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    vi.useRealTimers();
   });
 });

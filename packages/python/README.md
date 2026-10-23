@@ -38,7 +38,7 @@ pytest tests/
 
 Get your credentials from the Olbrain dashboard:
 - **Agent ID**: Your unique agent identifier
-- **API Key**: Starts with `sk_live_` (production) or `sk_` (test)
+- **API Key**: an access key (`ak_…`) from Noesis → Settings → Organization → Access keys, or from the finish page Alchemist links to when it hands an agent over (that key works only for that agent)
 
 ### Basic Example
 
@@ -48,7 +48,7 @@ from olbrain import AgentClient
 # Initialize client
 client = AgentClient(
     agent_id="your-agent-id",
-    api_key="sk_live_your_api_key"
+    api_key="ak_your_api_key"
 )
 
 # Create a session and send a message
@@ -67,7 +67,7 @@ client.close()
 from olbrain import AgentClient
 
 # Automatically closes client when done
-with AgentClient(agent_id="your-agent-id", api_key="sk_live_your_key") as client:
+with AgentClient(agent_id="your-agent-id", api_key="ak_your_key") as client:
     session_id = client.create_session(title="My Chat")
     response = client.send_and_wait(session_id, "What is machine learning?")
     print(response.text)
@@ -91,7 +91,7 @@ Send a message and wait for the complete response:
 ```python
 from olbrain import AgentClient
 
-with AgentClient(agent_id="your-agent-id", api_key="sk_live_your_key") as client:
+with AgentClient(agent_id="your-agent-id", api_key="ak_your_key") as client:
     # Create a new chat session
     session_id = client.create_session(title="My Chat")
 
@@ -106,12 +106,12 @@ with AgentClient(agent_id="your-agent-id", api_key="sk_live_your_key") as client
 
 ### 2. Real-Time Streaming (Callback Pattern)
 
-Receive messages in real-time as they arrive:
+Receive new messages as they arrive (the client polls the session every 2 seconds):
 
 ```python
 from olbrain import AgentClient
 
-client = AgentClient(agent_id="your-agent-id", api_key="sk_live_your_key")
+client = AgentClient(agent_id="your-agent-id", api_key="ak_your_key")
 
 # Define message handler
 def on_message(msg):
@@ -143,7 +143,7 @@ Create, retrieve, and manage chat sessions:
 ```python
 from olbrain import AgentClient
 
-with AgentClient(agent_id="your-agent-id", api_key="sk_live_your_key") as client:
+with AgentClient(agent_id="your-agent-id", api_key="ak_your_key") as client:
     # Create session with metadata
     session = client.create_session(
         title="Support Chat",
@@ -162,15 +162,9 @@ with AgentClient(agent_id="your-agent-id", api_key="sk_live_your_key") as client
     for msg in messages.get('messages', []):
         print(f"{msg['role']}: {msg['content']}")
 
-    # Update session
-    updated = client.update_session(session, title="Updated Chat Title")
-
     # Get session statistics
     stats = client.get_session_stats(session)
     print(f"Stats: {stats}")
-
-    # Archive/delete session
-    client.delete_session(session)
 ```
 
 ### 4. Model Override
@@ -180,7 +174,7 @@ Send messages using a specific model:
 ```python
 from olbrain import AgentClient
 
-with AgentClient(agent_id="your-agent-id", api_key="sk_live_your_key") as client:
+with AgentClient(agent_id="your-agent-id", api_key="ak_your_key") as client:
     session_id = client.create_session()
 
     # Use specific model for this request
@@ -200,7 +194,7 @@ Maintain conversation context:
 ```python
 from olbrain import AgentClient
 
-with AgentClient(agent_id="your-agent-id", api_key="sk_live_your_key") as client:
+with AgentClient(agent_id="your-agent-id", api_key="ak_your_key") as client:
     session_id = client.create_session(title="Q&A Session")
 
     # First message
@@ -231,7 +225,7 @@ from olbrain.exceptions import (
 )
 
 try:
-    client = AgentClient(agent_id="your-agent-id", api_key="sk_live_your_key")
+    client = AgentClient(agent_id="your-agent-id", api_key="ak_your_key")
     session_id = client.create_session()
     response = client.send_and_wait(session_id, "Hello")
 
@@ -259,24 +253,21 @@ finally:
 
 ### API Key
 
-The SDK validates API keys. Valid prefixes are:
-- `sk_live_` - Production keys
-- `org_live_` - Organization keys
-- `sk_` - Test keys
-- `org_` - Test organization keys
+The SDK validates API keys. Access keys (`ak_`) are the only kind issued today; the older
+`sk_live_`, `org_live_`, `sk_` and `org_` prefixes still pass validation.
 
 ```python
 # Valid API key
 client = AgentClient(
     agent_id="your-agent-id",
-    api_key="sk_live_your_api_key_here"
+    api_key="ak_your_api_key_here"
 )
 ```
 
 ### Environment Variables
 
 ```bash
-export OLBRAIN_API_KEY="sk_live_your_api_key"
+export OLBRAIN_API_KEY="ak_your_api_key"
 export OLBRAIN_AGENT_ID="your-agent-id"
 ```
 
@@ -302,10 +293,10 @@ client = AgentClient(agent_id="...", api_key="...")
 ### Common Issues
 
 **"Invalid API key" error**
-- Ensure your API key starts with `sk_live_`, `org_live_`, `sk_`, or `org_`
+- Ensure your API key starts with `ak_` (or one of the older `sk_live_`, `org_live_`, `sk_`, `org_` prefixes)
 - Check that you copied the key correctly (no extra spaces)
 
-**"Stream connection failed" error**
+**"Message poll failed" in the logs**
 - Check that your agent ID is correct
 - Verify you have a stable internet connection
 - Try restarting the client
@@ -351,8 +342,8 @@ The test will:
 |--------|-----------|---------|-------------|
 | `create_session()` | `title`, `user_id`, `metadata`, `on_message`, `mode`, `description` | `str` (session_id) | Create a new chat session |
 | `get_session(session_id)` | `session_id` | `SessionInfo` | Get session details |
-| `update_session(session_id, ...)` | `session_id`, `title`, `metadata`, `status` | `SessionInfo` | Update session properties |
-| `delete_session(session_id)` | `session_id` | `Dict` | Archive/delete a session |
+| `update_session(session_id, ...)` | `session_id`, `title`, `metadata`, `status` | - | Not supported: raises `OlbrainError` (the Olbrain API has no endpoint for it) |
+| `delete_session(session_id)` | `session_id` | - | Not supported: raises `OlbrainError` (the Olbrain API has no endpoint for it) |
 | `get_messages(session_id, ...)` | `session_id`, `limit`, `offset` | `Dict` | Get message history |
 | `get_session_stats(session_id)` | `session_id` | `Dict` | Get session statistics |
 
@@ -362,7 +353,7 @@ The test will:
 |--------|-----------|---------|-------------|
 | `send(session_id, message, ...)` | `session_id`, `message`, `user_id`, `metadata`, `model` | `Dict` | Send message (async with callback) |
 | `send_and_wait(session_id, message, ...)` | `session_id`, `message`, `user_id`, `metadata`, `model`, `timeout` | `ChatResponse` | Send and wait for response |
-| `listen(session_id, on_message)` | `session_id`, `on_message` | - | Start listening to session |
+| `listen(session_id, on_message)` | `session_id`, `on_message` | - | Poll the session every 2 s and call `on_message` for each new message |
 | `run()` | - | - | Block and process streaming messages |
 | `close()` | - | - | Close client and cleanup resources |
 

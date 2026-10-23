@@ -9,6 +9,7 @@ import {
   ValidationError,
   SessionNotFoundError,
   RateLimitError,
+  OlbrainError,
 } from '../src/core/exceptions';
 
 // Mock fetch
@@ -111,6 +112,61 @@ describe('AgentClient', () => {
     });
   });
 
+  describe('the Olbrain API (webhook.olbrain.com)', () => {
+    const DOOR = 'https://webhook.olbrain.com';
+    const ok = (body: unknown) => ({ ok: true, json: async () => body });
+
+    it('sends chat to the agent webhook by default, with an ak_ key', async () => {
+      const c = new AgentClient({ agentId: 'a1', apiKey: 'ak_test' });
+      (global.fetch as any).mockResolvedValueOnce(ok({ session_id: 's1' }));
+      await c.createSession();
+      (global.fetch as any).mockResolvedValueOnce(ok({ session_id: 's1', response: 'Hi', success: true }));
+      const reply = await c.sendAndWait('s1', 'Hello');
+      const calls = (global.fetch as any).mock.calls;
+      expect(calls[0][0]).toBe(`${DOOR}/api/agents/webhook/a1`);
+      expect(calls[1][0]).toBe(`${DOOR}/api/agents/webhook/a1`);
+      expect(JSON.parse(calls[1][1].body)).toMatchObject({ session_id: 's1', message: 'Hello' });
+      expect(reply.text).toBe('Hi');
+    });
+
+    it('reads a session, its stats and its messages', async () => {
+      const session = {
+        session_id: 's1', status: 'active', created_at: 't0', last_message_at: 't2', message_count: 2,
+        token_usage: { prompt_tokens: 7, completion_tokens: 5, total_tokens: 12 }, metadata: {},
+      };
+      (global.fetch as any).mockResolvedValueOnce(ok(session)).mockResolvedValueOnce(ok(session))
+        .mockResolvedValueOnce(ok({ messages: [{ message_id: 'm1', role: 'user', content: 'Hi', created_at: 't1' }] }));
+      expect((await client.getSession('s1')).messageCount).toBe(2);
+      expect(await client.getSessionStats('s1')).toEqual({
+        sessionId: 's1', messageCount: 2, totalTokens: 12, createdAt: 't0', lastMessageAt: 't2',
+      });
+      expect(await client.getMessages('s1', 10)).toEqual([{ role: 'user', content: 'Hi', timestamp: 't1', metadata: undefined }]);
+      const calls = (global.fetch as any).mock.calls;
+      expect(calls[0][0]).toBe(`${DOOR}/api/agents/test-agent/sessions/s1`);
+      expect(calls[0][1].method).toBe('GET');
+      expect(calls[2][0]).toBe(`${DOOR}/api/agents/test-agent/sessions/s1/messages?limit=10`);
+    });
+
+    it('never sends a session mode (the runtime refuses "production")', async () => {
+      (global.fetch as any).mockResolvedValueOnce(ok({ session_id: 's1' }));
+      await client.createSession({ title: 'Hi' });
+      expect(JSON.parse((global.fetch as any).mock.calls[0][1].body)).not.toHaveProperty('mode');
+    });
+
+    it("surfaces the API's error message", async () => {
+      (global.fetch as any).mockResolvedValueOnce({
+        ok: false, status: 422, json: async () => ({ error: { code: 'upstream_error', message: "The agent couldn't complete this request." } }),
+      });
+      await expect(client.sendAndWait('s1', 'Hi')).rejects.toThrow("The agent couldn't complete this request.");
+    });
+
+    it('has no API to change or delete a session, so it says so without a request', async () => {
+      await expect(client.updateSession('s1', { title: 'x' })).rejects.toThrow(OlbrainError);
+      await expect(client.deleteSession('s1')).rejects.toThrow(/not supported/);
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+  });
+
   describe('getSession', () => {
     it('should get session info', async () => {
       const mockResponse = {
@@ -141,11 +197,7 @@ describe('AgentClient', () => {
         json: async () => ({ error: 'Not found' }),
       });
 
-      // getSession deliberately falls back to basic info ("May not be implemented on all backends")
-      await expect(client.getSession('nonexistent')).resolves.toMatchObject({
-        sessionId: 'nonexistent',
-        status: 'active',
-      });
+      await expect(client.getSession('nonexistent')).rejects.toThrow(SessionNotFoundError);
     });
   });
 
@@ -219,17 +271,6 @@ describe('AgentClient', () => {
       await expect(client.send('session-123', '')).rejects.toThrow(
         ValidationError
       );
-    });
-  });
-
-  describe('deleteSession', () => {
-    it('should delete session', async () => {
-      (global.fetch as any).mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({}),
-      });
-
-      await expect(client.deleteSession('session-123')).resolves.toBeUndefined();
     });
   });
 

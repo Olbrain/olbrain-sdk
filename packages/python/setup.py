@@ -15,7 +15,7 @@ if os.path.exists(readme_path):
         long_description = f.read()
 
 # Read version from the package
-version = "0.3.2"
+version = "0.4.0"
 
 setup(
     name="olbrain-python-sdk",
