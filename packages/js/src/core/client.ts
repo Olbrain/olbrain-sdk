@@ -25,7 +25,8 @@ import {
 import { validateApiKey, validateAgentId, formatAuthHeader } from './utils';
 import { StreamManager } from './streaming';
 
-const DEFAULT_BASE_URL = 'https://olbrain-agent-cloud-768934887465.us-central1.run.app';
+// The Olbrain API. The old run.app host this SDK defaulted to no longer exists.
+const DEFAULT_BASE_URL = 'https://webhook.olbrain.com';
 const DEFAULT_TIMEOUT_MS = 30000;
 
 /**
@@ -42,7 +43,7 @@ export class AgentClient {
     this.config = {
       agentId: config.agentId,
       apiKey: config.apiKey,
-      baseUrl: config.baseUrl || DEFAULT_BASE_URL,
+      baseUrl: (config.baseUrl || DEFAULT_BASE_URL).replace(/\/$/, ''),
     };
 
     this.streamManager = new StreamManager();
@@ -55,7 +56,6 @@ export class AgentClient {
     const payload: Record<string, any> = {
       message: options?.title || 'Chat Session',
       response_mode: 'sync',
-      mode: 'production',
     };
 
     if (options?.userId) {
@@ -65,7 +65,7 @@ export class AgentClient {
       payload.metadata = options.metadata;
     }
 
-    const response = await this._request('POST', '/api/agent/webhook', payload);
+    const response = await this._request('POST', this._chatPath(), payload);
 
     if (!response.session_id) {
       throw new OlbrainError('Failed to create session: no session_id returned');
@@ -76,121 +76,50 @@ export class AgentClient {
 
   /**
    * Get session information
-   * @note May not be implemented on all backends
    */
   async getSession(sessionId: string): Promise<SessionInfo> {
-    try {
-      const response = await this._request('POST', '/api/agent/webhook', {
-        session_id: sessionId,
-        action: 'get_session_info',
-      });
-
-      return this._parseSessionInfo(response);
-    } catch (error) {
-      // Fallback: return basic session info
-      console.warn('get_session_info not available, returning basic info');
-      return {
-        sessionId,
-        title: 'Session',
-        status: 'active',
-        createdAt: new Date().toISOString(),
-        messageCount: 0,
-        metadata: {},
-      };
-    }
+    return this._parseSessionInfo(await this._request('GET', this._sessionPath(sessionId)));
   }
 
   /**
-   * Update session information
-   * @note May not be implemented on all backends
+   * The Olbrain API has no endpoint to change a session.
    */
-  async updateSession(sessionId: string, updates: SessionUpdates): Promise<SessionInfo> {
-    try {
-      const payload: Record<string, any> = {
-        session_id: sessionId,
-        action: 'update_session',
-      };
-
-      if (updates.title !== undefined) payload.title = updates.title;
-      if (updates.status !== undefined) payload.status = updates.status;
-      if (updates.metadata !== undefined) payload.metadata = updates.metadata;
-
-      const response = await this._request('POST', '/api/agent/webhook', payload);
-
-      return this._parseSessionInfo(response);
-    } catch (error) {
-      console.warn('update_session not available');
-      throw error;
-    }
+  async updateSession(_sessionId: string, _updates: SessionUpdates): Promise<SessionInfo> {
+    throw new OlbrainError('updateSession is not supported: the Olbrain API has no endpoint to change a session');
   }
 
   /**
-   * Delete a session
-   * @note May not be implemented on all backends
+   * The Olbrain API has no endpoint to delete a session.
    */
-  async deleteSession(sessionId: string): Promise<void> {
-    try {
-      await this._request('POST', '/api/agent/webhook', {
-        session_id: sessionId,
-        action: 'delete_session',
-      });
-    } catch (error) {
-      console.warn('delete_session not available');
-      throw error;
-    }
+  async deleteSession(_sessionId: string): Promise<void> {
+    throw new OlbrainError('deleteSession is not supported: the Olbrain API has no endpoint to delete a session');
   }
 
   /**
-   * Get messages from a session
-   * @note May not be implemented on all backends
+   * Get messages from a session, oldest first (at most 200)
    */
   async getMessages(sessionId: string, limit?: number): Promise<Message[]> {
-    try {
-      const response = await this._request('POST', '/api/agent/webhook', {
-        session_id: sessionId,
-        action: 'get_messages',
-        limit: limit || 100,
-      });
-
-      return (response.messages || []).map((msg: any) => ({
-        role: msg.role,
-        content: msg.content,
-        timestamp: msg.timestamp,
-        metadata: msg.metadata,
-      }));
-    } catch (error) {
-      console.warn('get_messages not available');
-      return [];
-    }
+    const response = await this._request('GET', `${this._sessionPath(sessionId)}/messages?limit=${limit || 100}`);
+    return (response.messages || []).map((msg: any) => ({
+      role: msg.role,
+      content: msg.content,
+      timestamp: msg.created_at,
+      metadata: msg.metadata,
+    }));
   }
 
   /**
    * Get session statistics
-   * @note May not be implemented on all backends
    */
   async getSessionStats(sessionId: string): Promise<SessionStats> {
-    try {
-      const response = await this._request('POST', '/api/agent/webhook', {
-        session_id: sessionId,
-        action: 'get_stats',
-      });
-
-      return {
-        sessionId: response.session_id,
-        messageCount: response.message_count,
-        totalTokens: response.total_tokens,
-        createdAt: response.created_at,
-        lastMessageAt: response.last_message_at,
-      };
-    } catch (error) {
-      console.warn('get_stats not available');
-      return {
-        sessionId,
-        messageCount: 0,
-        totalTokens: 0,
-        createdAt: new Date().toISOString(),
-      };
-    }
+    const response = await this._request('GET', this._sessionPath(sessionId));
+    return {
+      sessionId: response.session_id,
+      messageCount: response.message_count,
+      totalTokens: response.token_usage?.total_tokens,
+      createdAt: response.created_at,
+      lastMessageAt: response.last_message_at,
+    };
   }
 
   /**
@@ -217,12 +146,7 @@ export class AgentClient {
 
     const timeout = options?.timeout || DEFAULT_TIMEOUT_MS;
 
-    const response = await this._request(
-      'POST',
-      '/api/agent/webhook',
-      payload,
-      timeout
-    );
+    const response = await this._request('POST', this._chatPath(), payload, timeout);
 
     return {
       text: response.response || response.text || '',
@@ -248,7 +172,7 @@ export class AgentClient {
       throw new ValidationError('Message cannot be empty');
     }
 
-    await this._request('POST', '/api/agent/webhook', {
+    await this._request('POST', this._chatPath(), {
       session_id: sessionId,
       message: message.trim(),
       response_mode: 'sync',
@@ -290,6 +214,14 @@ export class AgentClient {
     this.streamManager.stopAllStreams();
   }
 
+  private _chatPath(): string {
+    return `/api/agents/webhook/${encodeURIComponent(this.config.agentId)}`;
+  }
+
+  private _sessionPath(sessionId: string): string {
+    return `/api/agents/${encodeURIComponent(this.config.agentId)}/sessions/${encodeURIComponent(sessionId)}`;
+  }
+
   /**
    * Helper method to make HTTP requests
    */
@@ -322,7 +254,8 @@ export class AgentClient {
       // Handle HTTP errors
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        const errorMessage = errorData.error || errorData.message || response.statusText;
+        // The Olbrain API answers {error: {code, message}}.
+        const errorMessage = errorData.error?.message || errorData.error || errorData.message || response.statusText;
 
         if (response.status === 401 || response.status === 403) {
           throw new AuthenticationError(errorMessage);

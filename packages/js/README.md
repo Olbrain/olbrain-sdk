@@ -22,7 +22,7 @@ Official JavaScript/TypeScript SDK for Olbrain Agent Cloud. Add AI agent chatbot
   <script>
     new OlbrainWidget.ChatWidget({
       agentId: 'your-agent-id',
-      apiKey: 'sk_live_your_key'
+      apiKey: 'ak_your_key'
     }).mount();
   </script>
 </body>
@@ -41,7 +41,7 @@ import { AgentClient } from '@olbrain/js-sdk';
 
 const client = new AgentClient({
   agentId: 'your-agent-id',
-  apiKey: 'sk_live_your_key'
+  apiKey: 'ak_your_key'
 });
 
 async function chat() {
@@ -136,7 +136,7 @@ The main API client for communicating with Olbrain agents.
 ```javascript
 const client = new AgentClient({
   agentId: 'your-agent-id',
-  apiKey: 'sk_live_your_key',
+  apiKey: 'ak_your_key',
   baseUrl: 'https://...', // Optional, defaults to production
 });
 ```
@@ -156,11 +156,6 @@ const sessionId = await client.createSession({
 // Get session info
 const session = await client.getSession(sessionId);
 
-// Update session
-await client.updateSession(sessionId, { title: 'New Title' });
-
-// Delete session
-await client.deleteSession(sessionId);
 ```
 
 ### Messaging
@@ -184,7 +179,7 @@ await client.send(sessionId, 'Your message');
 
 ### Streaming (Real-time Messages)
 
-Listen for messages in real-time via Server-Sent Events.
+Listen for new messages in a session (polls every 2 seconds; earlier messages are not replayed).
 
 ```javascript
 // Start listening for messages
@@ -216,7 +211,7 @@ Ready-to-use chat widget component for instant deployment.
 <script>
   new OlbrainWidget.ChatWidget({
     agentId: 'your-agent-id',
-    apiKey: 'sk_live_your_key'
+    apiKey: 'ak_your_key'
   }).mount();
 </script>
 ```
@@ -227,7 +222,7 @@ Ready-to-use chat widget component for instant deployment.
 new OlbrainWidget.ChatWidget({
   // Required
   agentId: 'your-agent-id',
-  apiKey: 'sk_live_your_key',
+  apiKey: 'ak_your_key',
 
   // UI Options
   position: 'bottom-right',        // 'bottom-right' | 'bottom-left' | 'custom'
@@ -273,10 +268,8 @@ await client.createSession(options?: CreateSessionOptions): Promise<string>
 // Get session info
 await client.getSession(sessionId: string): Promise<SessionInfo>
 
-// Update session
+// Not supported: the Olbrain API has no endpoint to change or delete a session (both throw)
 await client.updateSession(sessionId: string, updates: SessionUpdates): Promise<SessionInfo>
-
-// Delete session
 await client.deleteSession(sessionId: string): Promise<void>
 
 // Get session messages
@@ -462,11 +455,9 @@ npm run typecheck
 
 ## 📝 API Key Format
 
-API keys start with specific prefixes:
-- `sk_live_*` - Production secret key
-- `org_live_*` - Organization key
-- `sk_*` - Development secret key
-- `org_*` - Development organization key
+Create an access key (`ak_…`) in Noesis under Settings → Organization → Access keys, or from the
+finish page Alchemist links to when it hands an agent over (that key works only for that agent).
+Keep it on your server; never ship it to a browser.
 
 ## 🚀 Performance
 
@@ -487,7 +478,7 @@ The widget automatically saves sessions to localStorage:
 
 - ✅ One-line browser integration
 - ✅ Full TypeScript support
-- ✅ Real-time SSE streaming
+- ✅ Live messages for a session (polling)
 - ✅ Session persistence
 - ✅ Error handling with typed exceptions
 - ✅ Customizable UI theme and colors

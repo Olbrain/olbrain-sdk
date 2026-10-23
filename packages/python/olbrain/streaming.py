@@ -1,143 +1,95 @@
 """
-SSE streaming client for real-time message delivery
+Live messages for a session. The Olbrain API has no stream route for chat sessions, so this polls
+the session's message list (oldest first, paged by offset) and delivers each new message once.
 """
 
-import requests
-import json
-import threading
 import logging
-import time
+import threading
+from urllib.parse import quote
+
+import requests
+
+from .exceptions import OlbrainError
 
 logger = logging.getLogger(__name__)
 
+POLL_SECONDS = 2
+PAGE = 200
+
 
 class MessageStream:
-    """Real-time message stream client using Server-Sent Events"""
+    """Polls one session's messages in a background thread. Messages already there when it starts are skipped."""
 
     def __init__(self, agent_url: str, api_key: str, session_id: str, on_message, agent_id: str = None):
         """
-        Initialize message stream
-
         Args:
-            agent_url: Agent service URL
-            api_key: API key for authentication
-            session_id: Session ID to stream messages from
-            on_message: Callback function(message_dict) for new messages
-            agent_id: Agent ID for X-Agent-ID header
+            agent_url: Olbrain API base URL
+            api_key: Access key
+            session_id: Session to follow
+            on_message: Callback function(message_dict) for each new message
+            agent_id: The session's agent
         """
-        self.url = f"{agent_url.rstrip('/')}/sessions/{session_id}/stream"
+        self.url = (f"{agent_url.rstrip('/')}/api/agents/{quote(agent_id or '', safe='')}"
+                    f"/sessions/{quote(session_id, safe='')}/messages")
         self.api_key = api_key
         self.session_id = session_id
         self.on_message = on_message
-        self.agent_id = agent_id
         self.running = False
         self.thread = None
-        self.response = None
-
-        logger.debug(f"MessageStream initialized for session {session_id}")
+        self._stop = threading.Event()
+        self._offset = 0
+        self._seen = set()
 
     def start(self):
-        """Start receiving messages in background thread"""
+        """Start polling in a background thread"""
         if self.running:
             logger.warning(f"Stream already running for session {self.session_id}")
             return
 
         self.running = True
-        self.thread = threading.Thread(target=self._stream_loop, daemon=True)
+        self._stop.clear()
+        self.thread = threading.Thread(target=self._loop, daemon=True)
         self.thread.start()
 
-        logger.info(f"Started message stream for session {self.session_id}")
-
-    def _stream_loop(self):
-        """Main streaming loop with auto-reconnect"""
-        reconnect_delay = 5
-
+    def _loop(self):
+        primed = False  # the first full read only records what is already there
+        delay = POLL_SECONDS
         while self.running:
             try:
-                logger.debug(f"Connecting to stream: {self.url}")
+                while self._poll(deliver=primed) == PAGE and self.running:
+                    pass
+                primed = True
+                delay = POLL_SECONDS
+            except (requests.exceptions.RequestException, OlbrainError) as e:
+                logger.error(f"Message poll failed: {e}. Retrying in {delay}s")
+                delay = min(max(delay * 2, 5), 60)
+            self._stop.wait(delay)
 
-                # Open SSE connection
-                headers = {
-                    'Authorization': f'Bearer {self.api_key}',
-                    'Accept': 'text/event-stream',
-                    'Cache-Control': 'no-cache'
-                }
-                if self.agent_id:
-                    headers['X-Agent-ID'] = self.agent_id
-
-                self.response = requests.get(
-                    self.url,
-                    headers=headers,
-                    stream=True,
-                    timeout=90  # 90 second timeout (longer than 30s ping interval)
-                )
-
-                if self.response.status_code != 200:
-                    logger.error(f"Stream connection failed: {self.response.status_code} - {self.response.text}")
-                    time.sleep(reconnect_delay)
+    def _poll(self, deliver: bool) -> int:
+        """Read one page from the current offset; deliver unseen messages when `deliver`. Returns the page size."""
+        response = requests.get(self.url, headers={'Authorization': f'Bearer {self.api_key}'},
+                                params={'offset': self._offset, 'limit': PAGE}, timeout=30)
+        if response.status_code != 200:
+            raise OlbrainError(f"Messages refused (HTTP {response.status_code})")
+        messages = response.json().get('messages') or []
+        # ponytail: offset counts what came back; a soft-discarded message the API hides can make a page
+        # overlap the last one, and _seen drops the repeats.
+        self._offset += len(messages)
+        for m in messages:
+            mid = m.get('message_id')
+            if mid:
+                if mid in self._seen:
                     continue
-
-                logger.info(f"Stream connected for session {self.session_id}")
-                reconnect_delay = 5  # Reset delay on successful connection
-
-                # Read SSE events
-                for line in self.response.iter_lines():
-                    if not self.running:
-                        break
-
-                    if line and line.startswith(b'data:'):
-                        # Parse SSE data line
-                        data_json = line.decode('utf-8')[5:].strip()
-
-                        try:
-                            data = json.loads(data_json)
-
-                            # Skip system messages (ping, connected)
-                            if data.get('type') in ['ping', 'connected']:
-                                logger.debug(f"Received {data.get('type')} event")
-                                continue
-
-                            # Message received - call user's callback
-                            if 'content' in data:
-                                logger.debug(f"Received message: {data.get('message_id')}")
-                                self.on_message(data)
-
-                        except json.JSONDecodeError as e:
-                            logger.error(f"Failed to parse SSE data: {e}")
-
-            except requests.exceptions.RequestException as e:
-                logger.error(f"Stream error: {e}")
-
-            except Exception as e:
-                logger.error(f"Unexpected stream error: {e}", exc_info=True)
-
-            finally:
-                if self.response:
-                    self.response.close()
-
-            # Auto-reconnect if still running
-            if self.running:
-                logger.info(f"Reconnecting in {reconnect_delay}s...")
-                time.sleep(reconnect_delay)
-                reconnect_delay = min(reconnect_delay * 2, 60)  # Exponential backoff, max 60s
-
-        logger.info(f"Stream stopped for session {self.session_id}")
+                self._seen.add(mid)
+            if deliver and m.get('content'):
+                self.on_message(m)
+        return len(messages)
 
     def stop(self):
-        """Stop streaming"""
+        """Stop polling"""
         if not self.running:
             return
-
-        logger.info(f"Stopping stream for session {self.session_id}")
         self.running = False
-
-        if self.response:
-            try:
-                self.response.close()
-            except:
-                pass
-
+        self._stop.set()
         if self.thread and self.thread.is_alive():
             self.thread.join(timeout=2)
-
-        logger.info(f"Stream stopped for session {self.session_id}")

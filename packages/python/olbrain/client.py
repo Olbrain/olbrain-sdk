@@ -12,6 +12,7 @@ FIXES:
 import requests
 import logging
 import time
+from urllib.parse import quote
 from typing import Callable, Optional, Dict, Any, List
 
 logger = logging.getLogger(__name__)
@@ -148,7 +149,7 @@ class AgentClient:
 
         Args:
             agent_id: Agent identifier
-            api_key: API key (must start with 'sk_live_', 'org_live_', 'sk_', or 'org_')
+            api_key: Access key (ak_…); 'sk_live_', 'org_live_', 'sk_' and 'org_' are also accepted
             agent_url: Optional agent URL (auto-constructed if not provided)
 
         Raises:
@@ -157,10 +158,10 @@ class AgentClient:
         if not agent_id:
             raise ValueError("agent_id is required")
 
-        valid_prefixes = ('sk_live_', 'org_live_', 'sk_', 'org_')
+        valid_prefixes = ('ak_', 'sk_live_', 'org_live_', 'sk_', 'org_')
         if not api_key or not api_key.startswith(valid_prefixes):
             raise ValueError(
-                "Invalid API key - must start with 'sk_live_', 'org_live_', 'sk_', or 'org_'"
+                "Invalid API key - must start with 'ak_', 'sk_live_', 'org_live_', 'sk_', or 'org_'"
             )
 
         self.agent_id = agent_id
@@ -170,8 +171,8 @@ class AgentClient:
         if agent_url:
             self.agent_url = agent_url.rstrip('/')
         else:
-            # Use Olbrain shared agent URL
-            self.agent_url = "https://olbrain-agent-cloud-768934887465.us-central1.run.app"
+            # The Olbrain API. The old run.app host this SDK defaulted to no longer exists.
+            self.agent_url = "https://webhook.olbrain.com"
 
         self._streams = {}  # session_id -> MessageStream
         self._running = False
@@ -198,7 +199,7 @@ class AgentClient:
             title: Optional title for the session
             user_id: Optional user identifier for tracking
             metadata: Optional metadata dict
-            mode: Session mode - 'development', 'testing', or 'production' (default)
+            mode: Kept for compatibility and not sent: the Olbrain API always serves the published agent
             description: Optional session description
 
         Returns:
@@ -219,8 +220,7 @@ class AgentClient:
 
             payload = {
                 'message': title or "New Session",
-                'response_mode': 'sync',
-                'mode': mode
+                'response_mode': 'sync'
             }
             if user_id:
                 payload['user_id'] = user_id
@@ -229,7 +229,7 @@ class AgentClient:
 
             # Create session via webhook endpoint
             response = requests.post(
-                f"{self.agent_url}/api/agent/webhook",
+                self._chat_url(),
                 headers={
                     'Authorization': f'Bearer {self.api_key}',
                     'Content-Type': 'application/json',
@@ -278,7 +278,7 @@ class AgentClient:
             user_id: Optional user identifier
             metadata: Optional message metadata
             model: Optional model override (e.g., 'gpt-4', 'claude-3-opus')
-            mode: Session mode - 'development', 'testing', or 'production'
+            mode: Kept for compatibility and not sent: the Olbrain API always serves the published agent
 
         Returns:
             Response dict with success, response, token_usage, etc.
@@ -294,8 +294,7 @@ class AgentClient:
             payload = {
                 'session_id': session_id,
                 'message': message.strip(),
-                'response_mode': 'sync',
-                'mode': mode
+                'response_mode': 'sync'
             }
             if user_id:
                 payload['user_id'] = user_id
@@ -305,7 +304,7 @@ class AgentClient:
                 payload['model'] = model
 
             response = requests.post(
-                f"{self.agent_url}/api/agent/webhook",
+                self._chat_url(),
                 headers={
                     'Authorization': f'Bearer {self.api_key}',
                     'Content-Type': 'application/json',
@@ -378,7 +377,7 @@ class AgentClient:
                 payload['model'] = model
 
             response = requests.post(
-                f"{self.agent_url}/api/agent/webhook",  # FIXED: was /sessions/{id}/messages
+                self._chat_url(),
                 headers={
                     'Authorization': f'Bearer {self.api_key}',
                     'Content-Type': 'application/json',
@@ -489,208 +488,51 @@ class AgentClient:
         """
         Get session details.
 
-        FIXED: Uses webhook to query session info instead of /sessions/{id}
-
-        Args:
-            session_id: Session identifier
-
-        Returns:
-            SessionInfo with session details
-
         Raises:
-            SessionNotFoundError: If session doesn't exist
-            OlbrainError: If request fails
+            SessionNotFoundError: If the session doesn't exist (or belongs to another agent)
         """
-        try:
-            # Query session info via webhook
-            response = requests.post(
-                f"{self.agent_url}/api/agent/webhook",
-                headers={
-                    'Authorization': f'Bearer {self.api_key}',
-                    'Content-Type': 'application/json',
-                    **({'X-Agent-ID': self.agent_id} if self.agent_id else {})
-                },
-                json={
-                    'session_id': session_id,
-                    'action': 'get_session_info'
-                },
-                timeout=30
-            )
+        return SessionInfo.from_dict(self._get(self._session_url(session_id), "get session"))
 
-            self._handle_response_errors(response, "get session")
-
-            data = response.json()
-            return SessionInfo.from_dict(data)
-
-        except requests.exceptions.RequestException as e:
-            raise NetworkError(f"Network error getting session: {e}")
-
-    def update_session(
-        self,
-        session_id: str,
-        title: str = None,
-        metadata: Dict[str, Any] = None,
-        status: str = None
-    ) -> SessionInfo:
-        """
-        Update session details via webhook.
-
-        Args:
-            session_id: Session identifier
-            title: New session title (optional)
-            metadata: New metadata dict (optional)
-            status: New status - 'active' or 'archived' (optional)
-
-        Returns:
-            Updated SessionInfo
-        """
-        try:
-            update_data = {}
-            if title is not None:
-                update_data['title'] = title
-            if metadata is not None:
-                update_data['metadata'] = metadata
-            if status is not None:
-                if status not in ['active', 'archived']:
-                    raise ValueError("status must be 'active' or 'archived'")
-                update_data['status'] = status
-
-            response = requests.post(
-                f"{self.agent_url}/api/agent/webhook",
-                headers={
-                    'Authorization': f'Bearer {self.api_key}',
-                    'Content-Type': 'application/json',
-                    **({'X-Agent-ID': self.agent_id} if self.agent_id else {})
-                },
-                json={
-                    'session_id': session_id,
-                    'action': 'update_session',
-                    **update_data
-                },
-                timeout=30
-            )
-
-            self._handle_response_errors(response, "update session")
-
-            data = response.json()
-            return SessionInfo.from_dict(data)
-
-        except requests.exceptions.RequestException as e:
-            raise NetworkError(f"Network error updating session: {e}")
+    def update_session(self, session_id: str, title: str = None, metadata: Dict[str, Any] = None,
+                       status: str = None) -> SessionInfo:
+        """Not supported: the Olbrain API has no endpoint to change a session."""
+        raise OlbrainError("update_session is not supported: the Olbrain API has no endpoint to change a session")
 
     def delete_session(self, session_id: str) -> Dict[str, Any]:
-        """
-        Archive/delete a session via webhook.
-
-        Args:
-            session_id: Session identifier
-
-        Returns:
-            Dict with success status
-        """
-        try:
-            # Stop listening if we have an active stream
-            if session_id in self._streams:
-                self._streams[session_id].stop()
-                del self._streams[session_id]
-
-            response = requests.post(
-                f"{self.agent_url}/api/agent/webhook",
-                headers={
-                    'Authorization': f'Bearer {self.api_key}',
-                    'Content-Type': 'application/json',
-                    **({'X-Agent-ID': self.agent_id} if self.agent_id else {})
-                },
-                json={
-                    'session_id': session_id,
-                    'action': 'delete_session'
-                },
-                timeout=30
-            )
-
-            self._handle_response_errors(response, "delete session")
-
-            return response.json()
-
-        except requests.exceptions.RequestException as e:
-            raise NetworkError(f"Network error deleting session: {e}")
+        """Not supported: the Olbrain API has no endpoint to delete a session."""
+        raise OlbrainError("delete_session is not supported: the Olbrain API has no endpoint to delete a session")
 
     def get_session_stats(self, session_id: str) -> Dict[str, Any]:
         """
-        Get session statistics via webhook.
-
-        Args:
-            session_id: Session identifier
-
-        Returns:
-            Dict with session statistics
+        Session statistics: message_count, token_usage, cost, created_at and last_message_at.
         """
-        try:
-            response = requests.post(
-                f"{self.agent_url}/api/agent/webhook",
-                headers={
-                    'Authorization': f'Bearer {self.api_key}',
-                    'Content-Type': 'application/json',
-                    **({'X-Agent-ID': self.agent_id} if self.agent_id else {})
-                },
-                json={
-                    'session_id': session_id,
-                    'action': 'get_stats'
-                },
-                timeout=30
-            )
+        return self._get(self._session_url(session_id), "get session stats")
 
-            self._handle_response_errors(response, "get session stats")
-
-            return response.json()
-
-        except requests.exceptions.RequestException as e:
-            raise NetworkError(f"Network error getting session stats: {e}")
-
-    def get_messages(
-        self,
-        session_id: str,
-        limit: int = 20,
-        offset: int = 0
-    ) -> Dict[str, Any]:
+    def get_messages(self, session_id: str, limit: int = 20, offset: int = 0) -> Dict[str, Any]:
         """
-        Get message history via webhook.
-
-        Args:
-            session_id: Session identifier
-            limit: Maximum messages to return (default: 20)
-            offset: Number of messages to skip (default: 0)
-
-        Returns:
-            Dict with messages list and pagination info
+        Message history, oldest first: {"messages": [...], "limit", "offset"} (limit at most 200).
         """
-        try:
-            response = requests.post(
-                f"{self.agent_url}/api/agent/webhook",
-                headers={
-                    'Authorization': f'Bearer {self.api_key}',
-                    'Content-Type': 'application/json',
-                    **({'X-Agent-ID': self.agent_id} if self.agent_id else {})
-                },
-                json={
-                    'session_id': session_id,
-                    'action': 'get_messages',
-                    'limit': limit,
-                    'offset': offset
-                },
-                timeout=30
-            )
-
-            self._handle_response_errors(response, "get messages")
-
-            return response.json()
-
-        except requests.exceptions.RequestException as e:
-            raise NetworkError(f"Network error getting messages: {e}")
+        return self._get(f"{self._session_url(session_id)}/messages", "get messages",
+                         params={'limit': limit, 'offset': offset})
 
     # -------------------------------------------------------------------------
     # Helper Methods
     # -------------------------------------------------------------------------
+
+    def _chat_url(self) -> str:
+        return f"{self.agent_url}/api/agents/webhook/{quote(self.agent_id, safe='')}"
+
+    def _session_url(self, session_id: str) -> str:
+        return f"{self.agent_url}/api/agents/{quote(self.agent_id, safe='')}/sessions/{quote(session_id, safe='')}"
+
+    def _get(self, url: str, operation: str, params: Dict[str, Any] = None) -> Dict[str, Any]:
+        try:
+            response = requests.get(url, headers={'Authorization': f'Bearer {self.api_key}'},
+                                    params=params, timeout=30)
+        except requests.exceptions.RequestException as e:
+            raise NetworkError(f"Network error ({operation}): {e}")
+        self._handle_response_errors(response, operation)
+        return response.json()
 
     def _handle_response_errors(self, response: requests.Response, operation: str):
         """Handle HTTP response errors and raise appropriate exceptions."""

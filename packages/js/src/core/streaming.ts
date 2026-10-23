@@ -1,16 +1,17 @@
 /**
- * Streaming support for real-time message delivery via Server-Sent Events (SSE)
+ * Live messages for a session. The Olbrain API has no stream route for chat sessions, so this polls
+ * the session's message list (oldest first, paged by offset) and delivers each new message once.
  */
 
 import { StreamConfig, Message, MessageCallback, ErrorCallback } from './types';
 import { StreamingError } from './exceptions';
 import { formatAuthHeader, getExponentialBackoffDelay } from './utils';
-import { readSse } from './sse';
+
+const POLL_MS = 2000;
+const PAGE = 200;
 
 /**
- * Handles SSE streaming for a session. Reads the stream with fetch, not
- * EventSource: the endpoint authenticates by header only, and a browser's
- * EventSource can't send headers.
+ * Polls one session's messages. Messages already in the session when it starts are not delivered.
  */
 export class MessageStream {
   private config: StreamConfig;
@@ -18,8 +19,10 @@ export class MessageStream {
   private onError?: ErrorCallback;
   private controller?: AbortController;
   private isRunning: boolean = false;
-  private reconnectAttempt: number = 0;
-  private reconnectTimeout?: ReturnType<typeof setTimeout>;
+  private retryAttempt: number = 0;
+  private waitTimeout?: ReturnType<typeof setTimeout>;
+  private offset: number = 0;
+  private seen: Set<string> = new Set();
 
   constructor(config: StreamConfig, onMessage: MessageCallback, onError?: ErrorCallback) {
     this.config = config;
@@ -28,7 +31,7 @@ export class MessageStream {
   }
 
   /**
-   * Start the streaming connection
+   * Start polling
    */
   async start(): Promise<void> {
     if (this.isRunning) {
@@ -36,71 +39,79 @@ export class MessageStream {
     }
 
     this.isRunning = true;
-    this.reconnectAttempt = 0;
+    this.retryAttempt = 0;
     void this._run();
   }
 
   /**
-   * Stop the streaming connection
+   * Stop polling
    */
   stop(): void {
     this.isRunning = false;
     this.controller?.abort();
-    clearTimeout(this.reconnectTimeout);
+    clearTimeout(this.waitTimeout);
   }
 
-  /**
-   * Read the stream until stopped, reconnecting with backoff whenever it ends or fails
-   */
   private async _run(): Promise<void> {
-    const url = `${this.config.baseUrl}/sessions/${encodeURIComponent(this.config.sessionId)}/stream`;
+    let primed = false; // the first full read only records what is already there
     while (this.isRunning) {
-      this.controller = new AbortController();
-      let reason = 'Connection lost';
+      let delay = POLL_MS;
       try {
-        const res = await fetch(url, {
-          headers: {
-            'Authorization': formatAuthHeader(this.config.apiKey),
-            'X-Agent-ID': this.config.agentId,
-            'Accept': 'text/event-stream',
-          },
-          signal: this.controller.signal,
-        });
-        if (!res.ok || !res.body) {
-          reason = `Stream refused (HTTP ${res.status})`;
-        } else {
-          this.reconnectAttempt = 0;
-          for await (const data of readSse(res.body)) {
-            this._handleMessage(data);
-          }
+        let page: any[];
+        do {
+          page = await this._page();
+          for (const m of page) this._take(m, primed);
+        } while (page.length === PAGE && this.isRunning);
+        primed = true;
+        this.retryAttempt = 0;
+      } catch (error) {
+        if (!this.isRunning) {
+          return;
         }
-      } catch {
-        // dropped or aborted — reconnect below unless stopped
+        delay = getExponentialBackoffDelay(this.retryAttempt);
+        this.retryAttempt++;
+        const reason = error instanceof Error ? error.message : 'Connection lost';
+        this.onError?.(new StreamingError(`${reason}. Retrying in ${delay}ms (attempt ${this.retryAttempt})`));
       }
       if (!this.isRunning) {
         return;
       }
-
-      const delay = getExponentialBackoffDelay(this.reconnectAttempt);
-      this.reconnectAttempt++;
-      this.onError?.(
-        new StreamingError(`${reason}. Reconnecting in ${delay}ms (attempt ${this.reconnectAttempt})`)
-      );
       await new Promise((resolve) => {
-        this.reconnectTimeout = setTimeout(resolve, delay);
+        this.waitTimeout = setTimeout(resolve, delay);
       });
     }
   }
 
-  /**
-   * Deliver a parsed frame; connected/ping frames carry no role and are skipped
-   */
-  private _handleMessage(data: any): void {
-    if (data?.role && data?.content) {
+  private async _page(): Promise<any[]> {
+    const { baseUrl, agentId, sessionId, apiKey } = this.config;
+    const url = `${baseUrl}/api/agents/${encodeURIComponent(agentId)}/sessions/${encodeURIComponent(sessionId)}`
+      + `/messages?offset=${this.offset}&limit=${PAGE}`;
+    this.controller = new AbortController();
+    const res = await fetch(url, {
+      headers: { 'Authorization': formatAuthHeader(apiKey), 'Accept': 'application/json' },
+      signal: this.controller.signal,
+    });
+    if (!res.ok) {
+      throw new Error(`Messages refused (HTTP ${res.status})`);
+    }
+    const messages = (await res.json())?.messages || [];
+    // ponytail: offset counts what came back; a soft-discarded message the API hides can make a page
+    // overlap the last one, and `seen` drops the repeats.
+    this.offset += messages.length;
+    return messages;
+  }
+
+  private _take(data: any, deliver: boolean): void {
+    const id = data?.message_id;
+    if (id) {
+      if (this.seen.has(id)) return;
+      this.seen.add(id);
+    }
+    if (deliver && data?.role && data?.content) {
       const message: Message = {
         role: data.role,
         content: data.content,
-        timestamp: data.timestamp || new Date().toISOString(),
+        timestamp: data.created_at || new Date().toISOString(),
         metadata: data.metadata,
       };
       this.onMessage(message);
