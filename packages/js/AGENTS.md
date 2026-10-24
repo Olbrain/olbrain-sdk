@@ -135,8 +135,11 @@ Check `success` as well as catching exceptions. A 200 response can still carry
 
 Methods: `mount(target?) → Promise<void>`, `unmount()`, `open()`, `close()`,
 `sendMessage(text) → Promise<void>`. `sendMessage` is ignored while a reply is
-pending. The API key is visible to anyone who loads the page, so use a key you
-are willing to expose.
+pending. The API key is visible to anyone who loads the page, and it can call
+and bill the agent. Use it only for internal tools or testing, with a key limited
+to one agent. For a public website, use the website chat embed code from the
+agent's Website channel (Alchemist's hand-over shows it), which is locked to the
+site's domains.
 
 ---
 
@@ -309,4 +312,4 @@ stop();
 ## Gotchas
 
 - `AgentClient` and `Olbrain` parse errors differently, as described above.
-- Never ship an `ak_` key or a server secret to a browser. Front ends should use `getIdToken`.
+- Never ship an `ak_` key or a server secret to a browser. Front ends should use `getIdToken`. Public websites should use the website chat embed code, not `ChatWidget` with a key.
