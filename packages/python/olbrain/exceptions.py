@@ -62,3 +62,25 @@ class ValidationError(OlbrainError):
 class StreamingError(OlbrainError):
     """Raised when streaming response encounters an error."""
     pass
+
+
+class ApiError(OlbrainError):
+    """Raised by `Olbrain` for a non-2xx response the narrower errors don't cover."""
+
+    def __init__(self, status, code, message, detail=None):
+        super().__init__(message, error_code=code)
+        self.status = status
+        self.code = code
+        self.detail = detail
+
+
+class NotFoundError(ApiError):
+    """Raised by `Olbrain` on a 404 (code e.g. agent_not_found)."""
+
+    def __init__(self, code="not_found", message="Not found"):
+        super().__init__(404, code, message)
+
+
+class BillingError(ApiError):
+    """Raised by `Olbrain` when billing refuses the call (insufficient_funds, …)."""
+    pass
