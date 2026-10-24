@@ -1,6 +1,6 @@
 """
 Olbrain Python SDK
-Simple client for Olbrain AI agents with real-time message streaming
+AgentClient for conversational agents; Olbrain for workflow runs, approvals and research agents
 
 Full offline API reference: AGENTS.md next to this file.
 
@@ -23,6 +23,7 @@ Example:
 """
 
 from .client import AgentClient
+from .olbrain import Olbrain
 from .session import ChatResponse, SessionInfo, TokenUsage, Message, Session
 from .exceptions import (
     OlbrainError,
@@ -32,16 +33,20 @@ from .exceptions import (
     SessionNotFoundError,
     RateLimitError,
     ValidationError,
-    StreamingError
+    StreamingError,
+    ApiError,
+    NotFoundError,
+    BillingError,
 )
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 __author__ = "Olbrain Team"
 __email__ = "support@olbrain.com"
 
 __all__ = [
     # Main client
     'AgentClient',
+    'Olbrain',
     # Data classes
     'ChatResponse',
     'SessionInfo',
@@ -56,5 +61,8 @@ __all__ = [
     'SessionNotFoundError',
     'RateLimitError',
     'ValidationError',
-    'StreamingError'
+    'StreamingError',
+    'ApiError',
+    'NotFoundError',
+    'BillingError',
 ]

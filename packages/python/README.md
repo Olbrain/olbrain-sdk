@@ -81,6 +81,21 @@ with AgentClient(agent_id="your-agent-id", api_key="ak_your_key") as client:
 - **Token Tracking** - Monitor usage and costs per request
 - **Model Override** - Switch models per-message
 - **Error Handling** - Comprehensive exception hierarchy
+- **Workflow Agents** - Run workflow agents, read and control their runs, resolve approvals (`Olbrain`)
+- **Research Agents** - Sessions, streamed turns, plans, reports and review (`Olbrain.research`, sign-ins only)
+
+### Workflow agents
+
+```python
+import os
+from olbrain import Olbrain
+
+olbrain = Olbrain(api_key=os.environ["OLBRAIN_API_KEY"])  # keep the key on your server
+run = olbrain.workflows.run("your-agent-id", payload={"url": "https://example.com"})
+print(olbrain.runs.get("your-agent-id", run["run_id"]))
+```
+
+See [`olbrain/AGENTS.md`](olbrain/AGENTS.md) for runs, approvals and research agents.
 
 ## Usage
 
