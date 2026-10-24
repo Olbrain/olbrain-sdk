@@ -57,6 +57,13 @@ chat();
 
 ### Browser (Via CDN)
 
+> **Keep access keys off public pages.** Anything in a page's JavaScript is visible to every visitor,
+> and an `ak_` key lets them call (and bill) your agents. On a public website, use the **website chat
+> embed code** Olbrain gives you for the agent's Website channel (Alchemist's hand-over shows it too):
+> it is locked to your site's domains. In a front end with signed-in Olbrain users, use
+> `new Olbrain({ getIdToken })`. Put `apiKey` in browser code only for internal tools and testing,
+> with a key limited to one agent.
+
 **Core API only:**
 ```html
 <script src="https://unpkg.com/@olbrain/js-sdk@latest/dist/index.global.js"></script>
@@ -203,6 +210,9 @@ client.stopListening(sessionId);
 ## 🎨 Chat Widget
 
 Ready-to-use chat widget component for instant deployment.
+
+> The widget needs an `apiKey` in the page, so every visitor can read it. For a public website, use the
+> website chat embed code instead (see **Keep access keys off public pages** above).
 
 ### Basic Usage
 
