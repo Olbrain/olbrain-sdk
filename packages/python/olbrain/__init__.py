@@ -39,7 +39,7 @@ from .exceptions import (
     BillingError,
 )
 
-__version__ = "0.5.0"
+__version__ = "0.5.1"
 __author__ = "Olbrain Team"
 __email__ = "support@olbrain.com"
 
