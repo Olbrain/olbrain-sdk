@@ -36,6 +36,11 @@ class TestConfig:
         with pytest.raises(ValidationError, match="ak_"):
             Olbrain(api_key="sk_live_x")
 
+    def test_env_url(self, monkeypatch):
+        monkeypatch.setenv("OLBRAIN_AGENT_URL", "http://localhost:8080/")
+        assert Olbrain(api_key="ak_test").base_url == "http://localhost:8080"
+        assert Olbrain(api_key="ak_test", base_url="https://custom.example").base_url == "https://custom.example"
+
     def test_asks_for_a_fresh_sign_in_token_on_every_call(self, requests_mock):
         tokens = iter(["t1", "t2"])
         olbrain = Olbrain(get_id_token=lambda: next(tokens))

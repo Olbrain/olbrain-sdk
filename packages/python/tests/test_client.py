@@ -26,6 +26,15 @@ class TestAgentClient:
         client = AgentClient(agent_id="a1", api_key="ak_test", agent_url="https://custom.example/")
         assert client.agent_url == "https://custom.example"
 
+    def test_env_url(self, monkeypatch):
+        monkeypatch.setenv("OLBRAIN_AGENT_URL", "http://localhost:8080/")
+        assert AgentClient(agent_id="a1", api_key="ak_test").agent_url == "http://localhost:8080"
+
+    def test_argument_beats_env_url(self, monkeypatch):
+        monkeypatch.setenv("OLBRAIN_AGENT_URL", "http://localhost:8080")
+        client = AgentClient(agent_id="a1", api_key="ak_test", agent_url="https://custom.example")
+        assert client.agent_url == "https://custom.example"
+
     def test_chat_goes_to_the_agent_webhook(self, client, requests_mock):
         requests_mock.post(CHAT, json={"session_id": "s1", "response": "Hi", "success": True})
         assert client.create_session(title="Hello") == "s1"

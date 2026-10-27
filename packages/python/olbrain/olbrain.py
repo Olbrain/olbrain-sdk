@@ -5,6 +5,7 @@ Olbrain sign-in (get_id_token). The same API as the JavaScript SDK's `Olbrain`.
 """
 
 import json
+import os
 from types import SimpleNamespace
 from typing import Any, Callable, Dict, Iterator, Optional
 from urllib.parse import urlencode
@@ -70,7 +71,7 @@ class Olbrain:
             raise ValidationError("api_key must be an Olbrain access key (ak_…)")
         self._api_key = api_key
         self._get_id_token = get_id_token
-        self.base_url = (base_url or DEFAULT_BASE_URL).rstrip("/")
+        self.base_url = (base_url or os.environ.get("OLBRAIN_AGENT_URL") or DEFAULT_BASE_URL).rstrip("/")
         self.timeout = timeout
 
         def runs(agent_id):

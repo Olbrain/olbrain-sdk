@@ -9,6 +9,7 @@ FIXES:
 - send_and_wait() now works correctly
 """
 
+import os
 import requests
 import logging
 import time
@@ -150,7 +151,8 @@ class AgentClient:
         Args:
             agent_id: Agent identifier
             api_key: Access key (ak_…); 'sk_live_', 'org_live_', 'sk_' and 'org_' are also accepted
-            agent_url: Optional agent URL (auto-constructed if not provided)
+            agent_url: Optional API base URL. Falls back to the OLBRAIN_AGENT_URL
+                environment variable, then https://webhook.olbrain.com
 
         Raises:
             ValueError: If agent_id or api_key is invalid
@@ -167,12 +169,9 @@ class AgentClient:
         self.agent_id = agent_id
         self.api_key = api_key
 
-        # Auto-construct agent URL if not provided
-        if agent_url:
-            self.agent_url = agent_url.rstrip('/')
-        else:
-            # The Olbrain API. The old run.app host this SDK defaulted to no longer exists.
-            self.agent_url = "https://webhook.olbrain.com"
+        # Explicit argument, then OLBRAIN_AGENT_URL, then the Olbrain API
+        agent_url = agent_url or os.environ.get("OLBRAIN_AGENT_URL") or "https://webhook.olbrain.com"
+        self.agent_url = agent_url.rstrip('/')
 
         self._streams = {}  # session_id -> MessageStream
         self._running = False
