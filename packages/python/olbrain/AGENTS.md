@@ -56,7 +56,8 @@ with AgentClient(agent_id="your-agent-id", api_key=os.environ["OLBRAIN_API_KEY"]
 - `agent_id`: required. An empty value raises `ValueError`.
 - `api_key`: must start with `ak_`, `sk_live_`, `org_live_`, `sk_` or `org_`,
   or the constructor raises `ValueError`.
-- `agent_url`: optional. Defaults to `https://webhook.olbrain.com`.
+- `agent_url`: optional. Defaults to the `OLBRAIN_AGENT_URL` environment
+  variable if set, otherwise `https://webhook.olbrain.com`.
 
 Chat calls are `POST {agent_url}/api/agents/webhook/{agent_id}` with
 `Authorization: Bearer <api_key>`. Session reads are
@@ -146,7 +147,8 @@ olbrain = Olbrain(api_key=os.environ["OLBRAIN_API_KEY"])           # server / sc
 
 `Olbrain(api_key=None, get_id_token=None, base_url=None, timeout=30)`:
 `api_key` must start `ak_`; `get_id_token` is a callable returning the
-token and is called before **every** request; `base_url` defaults to
+token and is called before **every** request; `base_url` defaults to the
+`OLBRAIN_AGENT_URL` environment variable if set, otherwise
 `https://webhook.olbrain.com`; `timeout` is in seconds. Give **exactly one** of
 `api_key` or `get_id_token`, or the constructor raises `ValidationError`.
 
